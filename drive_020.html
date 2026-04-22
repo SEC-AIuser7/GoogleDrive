@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>シンギュマン — Drive Map</title>
+<meta name="viewport" content="width=1400, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; }
+:root {
+  --bg: #1a1a1a; --bg-elev: #222; --bg-elev2: #2a2a2a;
+  --border: #333; --text: #e8e8e8; --text-dim: #888;
+  --accent: #8fd9c7; --highlight: #ffb547; --highlight-border: #ff8c00;
+}
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: 'Noto Sans JP', 'Hiragino Sans', sans-serif; min-height: 100vh; }
+.topbar { position: sticky; top: 0; z-index: 100; background: rgba(22,22,22,0.95); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); padding: 14px 28px; }
+.topbar-inner { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.crumb { display: flex; align-items: baseline; gap: 14px; font-family: 'Space Grotesk', sans-serif; flex-wrap: wrap; }
+.crumb a { color: var(--text-dim); text-decoration: none; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; transition: color 0.2s; }
+.crumb a:hover { color: var(--accent); }
+.crumb .title { font-size: 17px; font-weight: 700; color: var(--text); letter-spacing: 0.01em; }
+.stats { display: flex; gap: 18px; margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim); }
+.stats b { color: var(--accent); font-weight: 600; }
+.search-bar { display: flex; gap: 12px; padding: 12px 28px; background: var(--bg-elev); border-bottom: 1px solid var(--border); align-items: stretch; flex-wrap: wrap; }
+.search-input-wrap { flex: 1; min-width: 280px; position: relative; }
+#searchInput { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 13px; padding: 10px 14px 10px 36px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+#searchInput:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(143,217,199,0.1); }
+.search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); pointer-events: none; }
+.clear-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 0 16px; border-radius: 4px; cursor: pointer; font-size: 12px; font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.05em; transition: all 0.2s; }
+.clear-btn:hover { border-color: var(--accent); color: var(--accent); }
+.main-grid { display: grid; grid-template-columns: 1fr 300px; min-height: calc(100vh - 110px); }
+.main-grid.no-panel { grid-template-columns: 1fr; }
+.svg-container { overflow: auto; padding: 20px; background: radial-gradient(circle at 20% 30%, rgba(107,163,214,0.03) 0%, transparent 50%), radial-gradient(circle at 80% 70%, rgba(143,217,199,0.03) 0%, transparent 50%), var(--bg); }
+#tree-svg { display: block; }
+.node { cursor: pointer; transition: opacity 0.25s; }
+.node:hover .node-rect { filter: brightness(1.1); }
+.node.dimmed { opacity: 0.15; }
+.node.highlight .node-rect { fill: var(--highlight) !important; stroke: var(--highlight-border) !important; stroke-width: 1.5 !important; }
+.node.highlight .node-text { fill: #1a1a1a !important; font-weight: 700 !important; }
+.node.jump-target .node-rect { stroke: var(--accent) !important; stroke-width: 2.5 !important; }
+.conn.dimmed { opacity: 0.08 !important; }
+.side-panel { background: var(--bg-elev); border-left: 1px solid var(--border); padding: 16px 18px; overflow-y: auto; max-height: calc(100vh - 110px); position: sticky; top: 110px; display: none; }
+.side-panel.visible { display: block; }
+.panel-title { font-family: 'Space Grotesk', sans-serif; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: baseline; }
+.panel-title b { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 12px; }
+#resultList { list-style: none; padding: 0; margin: 0; }
+#resultList li { padding: 8px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; line-height: 1.4; margin-bottom: 3px; background: var(--bg-elev2); border-left: 2px solid transparent; transition: all 0.15s; word-break: break-all; }
+#resultList li:hover { background: #333; border-left-color: var(--highlight); }
+#resultList li .lvl-badge { display: inline-block; font-size: 9px; font-family: 'JetBrains Mono', monospace; color: var(--text-dim); background: rgba(255,255,255,0.05); padding: 1px 5px; border-radius: 2px; margin-right: 6px; letter-spacing: 0.05em; }
+#resultList .no-hit { padding: 12px; text-align: center; color: var(--text-dim); font-size: 11px; font-style: italic; }
+#tooltip { position: fixed; background: #0d0d0d; border: 1px solid var(--accent); border-radius: 4px; padding: 10px 14px; max-width: 320px; font-size: 11px; color: var(--text); z-index: 1000; pointer-events: none; box-shadow: 0 8px 32px rgba(0,0,0,0.6); display: none; font-family: 'JetBrains Mono', monospace; line-height: 1.5; }
+#tooltip .tt-header { color: var(--accent); font-weight: 600; margin-bottom: 6px; font-family: 'Noto Sans JP', sans-serif; font-size: 12px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+#tooltip .tt-user { padding: 2px 0; }
+#tooltip .tt-role { color: var(--text-dim); font-size: 10px; }
+#tooltip .tt-empty { color: var(--text-dim); font-style: italic; }
+@media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } .side-panel { position: static; max-height: 400px; border-left: none; border-top: 1px solid var(--border); } }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">← 共有ドライブ一覧</a>
+      <a href="../search.html">🔍 権限検索</a>
+      <span class="title">シンギュマン</span>
+    </div>
+    <div class="stats">
+      <span><b>82</b> nodes</span>
+      <span><b>0</b> users</span>
+    </div>
+  </div>
+</div>
+<div class="search-bar">
+  <div class="search-input-wrap">
+    <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input id="searchInput" type="text" list="userDatalist" placeholder="メールアドレスを入力してアクセス権限を検索..." autocomplete="off" spellcheck="false">
+    <datalist id="userDatalist">
+      
+    </datalist>
+  </div>
+  <button class="clear-btn" onclick="clearSearch()">Clear</button>
+</div>
+<div class="main-grid" id="mainGrid">
+  <div class="svg-container" id="svgContainer"><svg id="tree-svg" width="1340" height="1502" viewBox="0 0 1340 1502" xmlns="http://www.w3.org/2000/svg"><g id="connections"><path class="conn" d="M 190 746.0 L 195.0 746.0 L 195.0 41.0 L 200 41.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 746.0 L 195.0 746.0 L 195.0 71.0 L 200 71.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 746.0 L 195.0 746.0 L 195.0 161.0 L 200 161.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 746.0 L 195.0 746.0 L 195.0 528.5 L 200 528.5" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 746.0 L 195.0 746.0 L 195.0 1237.25 L 200 1237.25" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 746.0 L 195.0 746.0 L 195.0 1451.0 L 200 1451.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 161.0 L 410.0 161.0 L 410.0 101.0 L 420 101.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 161.0 L 410.0 161.0 L 410.0 221.0 L 420 221.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 221.0 L 635.0 221.0 L 635.0 131.0 L 650 131.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 221.0 L 635.0 221.0 L 635.0 161.0 L 650 161.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 221.0 L 635.0 221.0 L 635.0 221.0 L 650 221.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 221.0 L 635.0 221.0 L 635.0 281.0 L 650 281.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 221.0 L 635.0 221.0 L 635.0 311.0 L 650 311.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 161.0 L 865.0 161.0 L 865.0 161.0 L 880 161.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 221.0 L 865.0 221.0 L 865.0 191.0 L 880 191.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 221.0 L 865.0 221.0 L 865.0 221.0 L 880 221.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 221.0 L 865.0 221.0 L 865.0 251.0 L 880 251.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 528.5 L 410.0 528.5 L 410.0 341.0 L 420 341.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 528.5 L 410.0 528.5 L 410.0 416.0 L 420 416.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 528.5 L 410.0 528.5 L 410.0 506.0 L 420 506.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 528.5 L 410.0 528.5 L 410.0 581.0 L 420 581.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 528.5 L 410.0 528.5 L 410.0 656.0 L 420 656.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 528.5 L 410.0 528.5 L 410.0 716.0 L 420 716.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 416.0 L 635.0 416.0 L 635.0 371.0 L 650 371.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 416.0 L 635.0 416.0 L 635.0 401.0 L 650 401.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 416.0 L 635.0 416.0 L 635.0 431.0 L 650 431.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 416.0 L 635.0 416.0 L 635.0 461.0 L 650 461.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 371.0 L 865.0 371.0 L 865.0 371.0 L 880 371.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 401.0 L 865.0 401.0 L 865.0 401.0 L 880 401.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 506.0 L 635.0 506.0 L 635.0 491.0 L 650 491.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 506.0 L 635.0 506.0 L 635.0 521.0 L 650 521.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 491.0 L 865.0 491.0 L 865.0 491.0 L 880 491.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 491.0 L 1090.0 491.0 L 1090.0 491.0 L 1100 491.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 581.0 L 635.0 581.0 L 635.0 551.0 L 650 551.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 581.0 L 635.0 581.0 L 635.0 581.0 L 650 581.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 581.0 L 635.0 581.0 L 635.0 611.0 L 650 611.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 656.0 L 635.0 656.0 L 635.0 641.0 L 650 641.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 656.0 L 635.0 656.0 L 635.0 671.0 L 650 671.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 671.0 L 865.0 671.0 L 865.0 671.0 L 880 671.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 716.0 L 635.0 716.0 L 635.0 701.0 L 650 701.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 716.0 L 635.0 716.0 L 635.0 731.0 L 650 731.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1237.25 L 410.0 1237.25 L 410.0 1068.5 L 420 1068.5" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1237.25 L 410.0 1237.25 L 410.0 1406.0 L 420 1406.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1068.5 L 635.0 1068.5 L 635.0 776.0 L 650 776.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1068.5 L 635.0 1068.5 L 635.0 836.0 L 650 836.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1068.5 L 635.0 1068.5 L 635.0 896.0 L 650 896.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1068.5 L 635.0 1068.5 L 635.0 941.0 L 650 941.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1068.5 L 635.0 1068.5 L 635.0 1106.0 L 650 1106.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1068.5 L 635.0 1068.5 L 635.0 1316.0 L 650 1316.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1068.5 L 635.0 1068.5 L 635.0 1361.0 L 650 1361.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 776.0 L 865.0 776.0 L 865.0 761.0 L 880 761.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 776.0 L 865.0 776.0 L 865.0 791.0 L 880 791.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 791.0 L 1090.0 791.0 L 1090.0 791.0 L 1100 791.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 836.0 L 865.0 836.0 L 865.0 836.0 L 880 836.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 836.0 L 1090.0 836.0 L 1090.0 821.0 L 1100 821.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 836.0 L 1090.0 836.0 L 1090.0 851.0 L 1100 851.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 896.0 L 865.0 896.0 L 865.0 881.0 L 880 881.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 896.0 L 865.0 896.0 L 865.0 911.0 L 880 911.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 911.0 L 1090.0 911.0 L 1090.0 911.0 L 1100 911.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 941.0 L 865.0 941.0 L 865.0 941.0 L 880 941.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 1106.0 L 865.0 1106.0 L 865.0 971.0 L 880 971.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 1106.0 L 865.0 1106.0 L 865.0 1001.0 L 880 1001.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 1106.0 L 865.0 1106.0 L 865.0 1031.0 L 880 1031.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 1106.0 L 865.0 1106.0 L 865.0 1106.0 L 880 1106.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 1106.0 L 865.0 1106.0 L 865.0 1181.0 L 880 1181.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 1106.0 L 865.0 1106.0 L 865.0 1241.0 L 880 1241.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 971.0 L 1090.0 971.0 L 1090.0 971.0 L 1100 971.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1106.0 L 1090.0 1106.0 L 1090.0 1061.0 L 1100 1061.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1106.0 L 1090.0 1106.0 L 1090.0 1091.0 L 1100 1091.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1106.0 L 1090.0 1106.0 L 1090.0 1121.0 L 1100 1121.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1106.0 L 1090.0 1106.0 L 1090.0 1151.0 L 1100 1151.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1181.0 L 1090.0 1181.0 L 1090.0 1181.0 L 1100 1181.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1241.0 L 1090.0 1241.0 L 1090.0 1211.0 L 1100 1211.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1241.0 L 1090.0 1241.0 L 1090.0 1241.0 L 1100 1241.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1241.0 L 1090.0 1241.0 L 1090.0 1271.0 L 1100 1271.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 1316.0 L 865.0 1316.0 L 865.0 1301.0 L 880 1301.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 1316.0 L 865.0 1316.0 L 865.0 1331.0 L 880 1331.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 1361.0 L 865.0 1361.0 L 865.0 1361.0 L 880 1361.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1406.0 L 635.0 1406.0 L 635.0 1391.0 L 650 1391.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1406.0 L 635.0 1406.0 L 635.0 1421.0 L 650 1421.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 1391.0 L 865.0 1391.0 L 865.0 1391.0 L 880 1391.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/></g><g id="nodes"><g class="node node-l1" data-name="シンギュマン" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/0AH73zMCwTDj9Uk9PVA">
+  <rect class="node-rect" x="20" y="735.0" width="170" height="22" rx="2" ry="2" fill="#8fd9c7" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="28" y="750.0" fill="#0a0a0a" font-size="11" font-weight="bold" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">シンギュマン</text>
+  <g class="info-icon" transform="translate(176,746.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="バックアップ" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1xOHgtwDUOcjXU-2qVUXtBqJ8hFCRWA9M">
+  <rect class="node-rect" x="200" y="30" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="45.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">バックアップ</text>
+  <g class="info-icon" transform="translate(386,41.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="マニュアル" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1UjCKseeAJmJmgzVsmozkWrFI3kuRZHKk">
+  <rect class="node-rect" x="200" y="60" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="75.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">マニュアル</text>
+  <g class="info-icon" transform="translate(386,71.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="モデル" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1Z5pGyWpnosC_5wtwqqhW03PLPb7cx5h5">
+  <rect class="node-rect" x="200" y="150.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="165.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">モデル</text>
+  <g class="info-icon" transform="translate(386,161.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="VRoid" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1BnZLCJ7IZdtv4435B2VdLw_9cmmynG4g">
+  <rect class="node-rect" x="420" y="90" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="105.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">VRoid</text>
+  <g class="info-icon" transform="translate(606,101.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="HeyGen素材" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1_YELkJYM9eTqxOlN35bRWzjX62YOgAo-">
+  <rect class="node-rect" x="420" y="210.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="225.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">HeyGen素材</text>
+  <g class="info-icon" transform="translate(606,221.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="ザッパラス" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1T1kNmqB16JWoJHflmWLrAMI0-vLy3mPU">
+  <rect class="node-rect" x="650" y="120" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="135.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">ザッパラス</text>
+  <g class="info-icon" transform="translate(836,131.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="1106_DXHR" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1UrzdHM-hjOlsbn_WKcDYrEL40fOw5k8J">
+  <rect class="node-rect" x="650" y="150.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="165.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">1106_DXHR</text>
+  <g class="info-icon" transform="translate(836,161.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="MP4" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/10SeVDAwiPgeT9ND7rvkOu2VzJRS80Vfw">
+  <rect class="node-rect" x="880" y="150" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="165.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">MP4</text>
+  <g class="info-icon" transform="translate(1066,161.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="前田社長_1015_HeyGen素材" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/16VOb_w-ccXUvVygkse2jEpV_14Y4RPkI">
+  <rect class="node-rect" x="650" y="210.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="225.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">前田社長_1015_HeyGen素材</text>
+  <g class="info-icon" transform="translate(836,221.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="色調補正済みMP4" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1j4r4KNJi6q0G6k6oi4IxM50_bKqP_Y_9">
+  <rect class="node-rect" x="880" y="180" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="195.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">色調補正済みMP4</text>
+  <g class="info-icon" transform="translate(1066,191.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="MOV" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1rEkbxZLzjHdZQcXf7azU1e9QJT2h_NSA">
+  <rect class="node-rect" x="880" y="210" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="225.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">MOV</text>
+  <g class="info-icon" transform="translate(1066,221.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="MP4" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1ayzrC_8z44qWi21mU5Y3oDYMPFeBD2lH">
+  <rect class="node-rect" x="880" y="240" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="255.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">MP4</text>
+  <g class="info-icon" transform="translate(1066,251.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="SSU_HeyGen素材" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1338P6l6dhX15uPOwrS-DaSyW_S8LfGH4">
+  <rect class="node-rect" x="650" y="270" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="285.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">SSU_HeyGen素材</text>
+  <g class="info-icon" transform="translate(836,281.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="エコム_HeyGen素材" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1FYKyL5hV--sIuUQlkoG4x0nv6XhawmBk">
+  <rect class="node-rect" x="650" y="300" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="315.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">エコム_HeyGen素材</text>
+  <g class="info-icon" transform="translate(836,311.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="動画制作" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1D84UcNpZvZK7AZU621_ANASiDE1JVDfd">
+  <rect class="node-rect" x="200" y="517.5" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="532.5" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">動画制作</text>
+  <g class="info-icon" transform="translate(386,528.5)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="KAGEMUSHA _YouTubeライブ" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1F3eL4vgQ6i1glnF9OFE5S7hZIETexuR1">
+  <rect class="node-rect" x="420" y="330" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="345.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">KAGEMUSHA _YouTubeライブ</text>
+  <g class="info-icon" transform="translate(606,341.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="0_DXHR" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1xhUQVfHHsgC_Z76HumMx2BgwnW5XVQqo">
+  <rect class="node-rect" x="420" y="405.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="420.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">0_DXHR</text>
+  <g class="info-icon" transform="translate(606,416.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="03_H＆K" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1MOtgxgYc2-SrrsWQCuEFgPG64wlUxfu7">
+  <rect class="node-rect" x="650" y="360.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="375.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">03_H＆K</text>
+  <g class="info-icon" transform="translate(836,371.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="__old" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1pHwvZtdpg29lDdoKnhUPmd40XfbBE2tl">
+  <rect class="node-rect" x="880" y="360" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="375.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">__old</text>
+  <g class="info-icon" transform="translate(1066,371.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="02_PPCフレームワーク" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1KufyzkrwV_B0752XA35fUDohjmtsAO_l">
+  <rect class="node-rect" x="650" y="390.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="405.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">02_PPCフレームワーク</text>
+  <g class="info-icon" transform="translate(836,401.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="__old" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1AAolujin2D-op_jaNIpGlTA50UXJbnoL">
+  <rect class="node-rect" x="880" y="390" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="405.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">__old</text>
+  <g class="info-icon" transform="translate(1066,401.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="__old" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/19Z6gRVaCC5h63l5nKI5_JrEtiAo0EkCe">
+  <rect class="node-rect" x="650" y="420" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="435.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">__old</text>
+  <g class="info-icon" transform="translate(836,431.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="01_会社紹介_素材" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/188phOrAKuiEqAA6j6H9sou7OgQHGkq1h">
+  <rect class="node-rect" x="650" y="450" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="465.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">01_会社紹介_素材</text>
+  <g class="info-icon" transform="translate(836,461.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="2_エコム_会社説明" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1FLTDWFC9EDUStLmFqIuDnxyZB4emCGSE">
+  <rect class="node-rect" x="420" y="495.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="510.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">2_エコム_会社説明</text>
+  <g class="info-icon" transform="translate(606,506.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="0731_エコム_会社説明_英語版" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1twa-KKbdFUkf96WRZlJBU_a3k7eLKrgl">
+  <rect class="node-rect" x="650" y="480.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="495.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">0731_エコム_会社説明_英語版</text>
+  <g class="info-icon" transform="translate(836,491.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="コピー_0725_エコム_会社説明" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1VocDdSlbDglG53tT-RKtDMPovRn7xNyL">
+  <rect class="node-rect" x="880" y="480.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="495.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">コピー_0725_エコム_会社説明</text>
+  <g class="info-icon" transform="translate(1066,491.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="Media Cache" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1UyK4o2sPlEw4fkZIs6x9-0Bz9vjYJrb5">
+  <rect class="node-rect" x="1100" y="480" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="495.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">Media Cache</text>
+  <g class="info-icon" transform="translate(1286,491.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="動画" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1ldoKiHZM127ZZLp4nMI3P5jFocHhOMQW">
+  <rect class="node-rect" x="650" y="510" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="525.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">動画</text>
+  <g class="info-icon" transform="translate(836,521.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="1_エコム_早わかり" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1uujhrblKWkua7SK8T7q7vSwCYr7giTqg">
+  <rect class="node-rect" x="420" y="570.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="585.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">1_エコム_早わかり</text>
+  <g class="info-icon" transform="translate(606,581.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="素材" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1z8Z0Wm8ahgiP4MBIJmNGQDt_QBdjZaqV">
+  <rect class="node-rect" x="650" y="540" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="555.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">素材</text>
+  <g class="info-icon" transform="translate(836,551.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="動画データ" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1-dZRvJvjBGDBnap4hZSBv7S-4fWLMAkM">
+  <rect class="node-rect" x="650" y="570" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="585.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">動画データ</text>
+  <g class="info-icon" transform="translate(836,581.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="動画_デザインカンプ" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1bSPHNdZy24g5fi-M4WD4fBfZITSSv4HG">
+  <rect class="node-rect" x="650" y="600" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="615.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">動画_デザインカンプ</text>
+  <g class="info-icon" transform="translate(836,611.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="3_二条_LP掲載用(和歌)" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1UM0gaalLo9clPsH33BA7GsupNK_HJnr_">
+  <rect class="node-rect" x="420" y="645.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="660.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">3_二条_LP掲載用(和歌)</text>
+  <g class="info-icon" transform="translate(606,656.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="動画データ" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1Z37qXWaCD1AkIO1q8aKpBXXqlet9wvdh">
+  <rect class="node-rect" x="650" y="630" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="645.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">動画データ</text>
+  <g class="info-icon" transform="translate(836,641.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="二条" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1p2r26xnum7pR7D1GKdcwOIaHcVR0zT14">
+  <rect class="node-rect" x="650" y="660.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="675.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">二条</text>
+  <g class="info-icon" transform="translate(836,671.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="drive-download-20240709T161633Z-001" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1VTtBXEEbQbmgiJ8oIlLySf3cpGKNIZ80">
+  <rect class="node-rect" x="880" y="660" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="675.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">drive-download-202407…</text>
+  <g class="info-icon" transform="translate(1066,671.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="5_SSU_LP掲載用" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1MwY1pFlMpp52XUSGM8d5A4XEjSR_3-vl">
+  <rect class="node-rect" x="420" y="705.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="720.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">5_SSU_LP掲載用</text>
+  <g class="info-icon" transform="translate(606,716.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="SSU" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1VFQb7weWLi42auIa0Q4z6u9LSPdkO6Ph">
+  <rect class="node-rect" x="650" y="690" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="705.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">SSU</text>
+  <g class="info-icon" transform="translate(836,701.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="アーカイブ" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1rcMmZUiNuTDOPSs9LSV0Vi84SaShvOwS">
+  <rect class="node-rect" x="650" y="720" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="735.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">アーカイブ</text>
+  <g class="info-icon" transform="translate(836,731.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="研修用" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1zsbndW_U9IiXXrBy3wwrwZMMocAcnomB">
+  <rect class="node-rect" x="200" y="1226.25" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="1241.25" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">研修用</text>
+  <g class="info-icon" transform="translate(386,1237.25)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="研修資料" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1HYQe9rZBTpUj0Z24O8fg3DwdzYwkte0X">
+  <rect class="node-rect" x="420" y="1057.5" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1072.5" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">研修資料</text>
+  <g class="info-icon" transform="translate(606,1068.5)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="08.SDビジョン_SNS運用" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1_8v3Ix2MDyQDY8srOjsSz5j56X8t-Ksm">
+  <rect class="node-rect" x="650" y="765.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="780.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">08.SDビジョン_SNS運用</text>
+  <g class="info-icon" transform="translate(836,776.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="Genspark" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1Z2piMh0iD8OLtf--VUD2vb9Lknrkl-Rh">
+  <rect class="node-rect" x="880" y="750" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="765.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">Genspark</text>
+  <g class="info-icon" transform="translate(1066,761.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="old_" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1uw22cgR_efGk7mU722vDT2rJSsHGxDhu">
+  <rect class="node-rect" x="880" y="780.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="795.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">old_</text>
+  <g class="info-icon" transform="translate(1066,791.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="1" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1UpbiBTGgRbapeZEe2c2CVYjeJjqFUzm6">
+  <rect class="node-rect" x="1100" y="780" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="795.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">1</text>
+  <g class="info-icon" transform="translate(1286,791.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="09_SDビジョン_生成AI実践" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1S8nPCQpI7ITlwV79e-_v5_Y4IU4nOYPc">
+  <rect class="node-rect" x="650" y="825.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="840.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">09_SDビジョン_生成AI実践</text>
+  <g class="info-icon" transform="translate(836,836.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="_old" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1VzqkmPOOczaZ5xFHepABeb29YZC9CecC">
+  <rect class="node-rect" x="880" y="825.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="840.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">_old</text>
+  <g class="info-icon" transform="translate(1066,836.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="元ファイル" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/10AOi3X5UGFO3tS3-NBC1yG1gMVA2gYuR">
+  <rect class="node-rect" x="1100" y="810" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="825.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">元ファイル</text>
+  <g class="info-icon" transform="translate(1286,821.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="02_Genspark_Perplexity" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1x4OtYeXXBQSjrNs9CdtCcgrPC8lKPR-e">
+  <rect class="node-rect" x="1100" y="840" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="855.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">02_Genspark_Perplexity</text>
+  <g class="info-icon" transform="translate(1286,851.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="07.takusan様" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/10-marwe9GCXLMuCEq_uB2hKMhjYHyArZ">
+  <rect class="node-rect" x="650" y="885.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="900.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">07.takusan様</text>
+  <g class="info-icon" transform="translate(836,896.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="先方確認用" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1LWZta0CuDK-GM5pOYc09fzCcGwgkemYs">
+  <rect class="node-rect" x="880" y="870" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="885.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">先方確認用</text>
+  <g class="info-icon" transform="translate(1066,881.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="__old" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1swf1R4uiNHQFZ1STTSd6LzFxF98uRKRm">
+  <rect class="node-rect" x="880" y="900.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="915.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">__old</text>
+  <g class="info-icon" transform="translate(1066,911.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="先方確認用" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1EP-lsafIxXgr6GTTYhFto-NRuShkH5OM">
+  <rect class="node-rect" x="1100" y="900" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="915.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">先方確認用</text>
+  <g class="info-icon" transform="translate(1286,911.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="06.オルタスジャパン" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1mghL2yrJr8oYoJ_ynF8SaqzgCyuYTmlF">
+  <rect class="node-rect" x="650" y="930.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="945.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">06.オルタスジャパン</text>
+  <g class="info-icon" transform="translate(836,941.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="打ち合わせ議事録" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1AHxo5cCDU1y7VJf3WYLUnYXIgcEcStxJ">
+  <rect class="node-rect" x="880" y="930" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="945.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">打ち合わせ議事録</text>
+  <g class="info-icon" transform="translate(1066,941.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="0.ベース" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1N18zbnJAmeGo4CHs2fx0p3tE5JvsE9oC">
+  <rect class="node-rect" x="650" y="1095.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1110.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">0.ベース</text>
+  <g class="info-icon" transform="translate(836,1106.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="マーケティング" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1C1yzzI4U0dx3q1fKV1eO3WKMMtDlCz-N">
+  <rect class="node-rect" x="880" y="960.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="975.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">マーケティング</text>
+  <g class="info-icon" transform="translate(1066,971.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="SNSマーケ" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1o62H2ZhSQactCG4rbGHcc7DuIun8PKT7">
+  <rect class="node-rect" x="1100" y="960" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="975.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">SNSマーケ</text>
+  <g class="info-icon" transform="translate(1286,971.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="総合課題" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1fmJX6sV5nRCGzWGcKSon1Mg9xnxcEff8">
+  <rect class="node-rect" x="880" y="990" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1005.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">総合課題</text>
+  <g class="info-icon" transform="translate(1066,1001.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="アーカイブ" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1SEdD-VWp-piwqSJycBGXlW5b2yoLHugQ">
+  <rect class="node-rect" x="880" y="1020" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1035.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">アーカイブ</text>
+  <g class="info-icon" transform="translate(1066,1031.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="生成AI" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1tkIT6yCHBw-KHJCHxsPbVbvb34nUXgWC">
+  <rect class="node-rect" x="880" y="1095.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1110.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">生成AI</text>
+  <g class="info-icon" transform="translate(1066,1106.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="動画生成AI" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1xdMJuyaqm-D2V0hDgU7wi-rO3ZmqfaxL">
+  <rect class="node-rect" x="1100" y="1050" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1065.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">動画生成AI</text>
+  <g class="info-icon" transform="translate(1286,1061.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="音声生成AI" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/14KRJylREyHKWrEs5cJwIx6buGcJBlyEP">
+  <rect class="node-rect" x="1100" y="1080" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1095.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">音声生成AI</text>
+  <g class="info-icon" transform="translate(1286,1091.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="テキスト生成AI" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/12XIXedLotVuC_sSnnDSAhk8LLRzEcipU">
+  <rect class="node-rect" x="1100" y="1110" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1125.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">テキスト生成AI</text>
+  <g class="info-icon" transform="translate(1286,1121.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="画像生成AI" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1tc0ZEC-jQikhvnWCTfGcLhxSzuV95e5L">
+  <rect class="node-rect" x="1100" y="1140" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1155.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">画像生成AI</text>
+  <g class="info-icon" transform="translate(1286,1151.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="デジタルヒューマン" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/11U2Hjh9EcCL-D76ULqhS46skGzPsUW8t">
+  <rect class="node-rect" x="880" y="1170.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1185.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">デジタルヒューマン</text>
+  <g class="info-icon" transform="translate(1066,1181.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="HeyGen" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1PHS6zCSAcYT8qDyuRsskf-4nTFu0rWBS">
+  <rect class="node-rect" x="1100" y="1170" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1185.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">HeyGen</text>
+  <g class="info-icon" transform="translate(1286,1181.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="編集ツール" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1eF609XlRQ5KKBInl8uIXpN5Sa6DslrL3">
+  <rect class="node-rect" x="880" y="1230.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1245.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">編集ツール</text>
+  <g class="info-icon" transform="translate(1066,1241.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="CapCut" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1VrBKGVz_Bhc1LRMDmY717nF8QFkwgwKo">
+  <rect class="node-rect" x="1100" y="1200" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1215.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">CapCut</text>
+  <g class="info-icon" transform="translate(1286,1211.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="Adobe Premiere Pro" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1Jw6lKczjBHyy5LzHSQW3CnVfOQVAfnaH">
+  <rect class="node-rect" x="1100" y="1230" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1245.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">Adobe Premiere Pro</text>
+  <g class="info-icon" transform="translate(1286,1241.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="Canva" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1kKnYyEhidKFKKmCj-ZaU-fryigMABe6h">
+  <rect class="node-rect" x="1100" y="1260" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1275.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">Canva</text>
+  <g class="info-icon" transform="translate(1286,1271.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="5.SDビジョン" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1DY8WAp04dGHJ3D6u-Sqp8WoRq-BfFMvn">
+  <rect class="node-rect" x="650" y="1305.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1320.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">5.SDビジョン</text>
+  <g class="info-icon" transform="translate(836,1316.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="研修資料_241125〜250114" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1jYRErfjTesLaS7raiSiy3I8PKgz2azfa">
+  <rect class="node-rect" x="880" y="1290" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1305.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">研修資料_241125〜250114</text>
+  <g class="info-icon" transform="translate(1066,1301.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="アーカイブ" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1jQ04867A0El9C0WW3BLv4HjP_KYckaIy">
+  <rect class="node-rect" x="880" y="1320" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1335.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">アーカイブ</text>
+  <g class="info-icon" transform="translate(1066,1331.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="4.デジタルサロン協会" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/123IGzw1DdBH0VTBOvjOPSq7Z2Pbe9oDp">
+  <rect class="node-rect" x="650" y="1350.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1365.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">4.デジタルサロン協会</text>
+  <g class="info-icon" transform="translate(836,1361.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="__old" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1gl-2Br9IbYdU9XDjblKPdJriNLOYIMFQ">
+  <rect class="node-rect" x="880" y="1350" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1365.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">__old</text>
+  <g class="info-icon" transform="translate(1066,1361.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="アーカイブ" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1AvFYfjfuuXGVzmJppjUI5A6MJy6rPGKM">
+  <rect class="node-rect" x="420" y="1395.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1410.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">アーカイブ</text>
+  <g class="info-icon" transform="translate(606,1406.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="0808_第六回シンギュマン研修_素材" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1OhAfk8KhEhO64LxqkzSc1mcbsvkf8uii">
+  <rect class="node-rect" x="650" y="1380.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1395.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">0808_第六回シンギュマン研修_素材</text>
+  <g class="info-icon" transform="translate(836,1391.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="応用編" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/12OfnFgM4NEy1AR0k4zOyJCqnEZIGZQsA">
+  <rect class="node-rect" x="880" y="1380" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1395.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">応用編</text>
+  <g class="info-icon" transform="translate(1066,1391.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="素材" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/1A1dlZBi5ry19wQ9kOEApY3SHHZFylruA">
+  <rect class="node-rect" x="650" y="1410" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1425.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">素材</text>
+  <g class="info-icon" transform="translate(836,1421.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="テンプレート" data-emails="" data-users='[]' data-url="https://drive.google.com/drive/folders/14OIBbKERLV_EHF1xcx1k8M-6fEqOtrUx">
+  <rect class="node-rect" x="200" y="1440" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="1455.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">テンプレート</text>
+  <g class="info-icon" transform="translate(386,1451.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g></g></svg></div>
+  <aside class="side-panel" id="sidePanel">
+    <div class="panel-title">該当フォルダ <b id="resultCount">0</b></div>
+    <div id="panelBody"></div>
+  </aside>
+</div>
+<div id="tooltip"></div>
+<script>
+(function(){
+  const svg = document.getElementById('tree-svg');
+  const allNodes = Array.from(svg.querySelectorAll('.node'));
+  const allConns = Array.from(svg.querySelectorAll('.conn'));
+  const searchInput = document.getElementById('searchInput');
+  const panelBody = document.getElementById('panelBody');
+  const resultCount = document.getElementById('resultCount');
+  const sidePanel = document.getElementById('sidePanel');
+  const mainGrid = document.getElementById('mainGrid');
+  const tooltip = document.getElementById('tooltip');
+  const svgContainer = document.getElementById('svgContainer');
+  
+  allNodes.forEach(n => {
+    const rect = n.querySelector('.node-rect');
+    const text = n.querySelector('.node-text');
+    [rect, text].forEach(el => {
+      if (!el) return;
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.info-icon')) return;
+        const url = n.dataset.url;
+        if (url) window.open(url, '_blank');
+      });
+    });
+    const info = n.querySelector('.info-icon');
+    if (info) {
+      info.addEventListener('mouseenter', (e) => showTip(e, n));
+      info.addEventListener('mousemove', (e) => positionTip(e));
+      info.addEventListener('mouseleave', () => hideTip());
+    }
+  });
+  
+  function showTip(e, node) {
+    const name = node.dataset.name;
+    let users;
+    try { users = JSON.parse(node.dataset.users); } catch(_) { users = []; }
+    let h = `<div class="tt-header">${escapeHtml(name)}</div>`;
+    if (users.length === 0) { h += '<div class="tt-empty">権限情報なし</div>'; }
+    else { users.forEach(u => { h += `<div class="tt-user">${escapeHtml(u.email)} <span class="tt-role">${u.role ? '('+escapeHtml(u.role)+')' : ''}</span></div>`; }); }
+    tooltip.innerHTML = h;
+    tooltip.style.display = 'block';
+    positionTip(e);
+  }
+  function positionTip(e) {
+    const pad = 14;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+    if (x + tw > window.innerWidth) x = e.clientX - tw - pad;
+    if (y + th > window.innerHeight) y = e.clientY - th - pad;
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+  }
+  function hideTip() { tooltip.style.display = 'none'; }
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+  
+  let searchTimer = null;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(doSearch, 150);
+  });
+  
+  function doSearch() {
+    const q = searchInput.value.trim().toLowerCase();
+    if (!q) { clearHighlight(); return; }
+    const matched = [];
+    allNodes.forEach(n => {
+      const emails = (n.dataset.emails || '').toLowerCase();
+      const emailList = emails.split(',').filter(Boolean);
+      let hit = false;
+      for (const e of emailList) { if (e === q || e.includes(q)) { hit = true; break; } }
+      if (hit) { n.classList.add('highlight'); n.classList.remove('dimmed'); matched.push(n); }
+      else { n.classList.remove('highlight'); n.classList.add('dimmed'); }
+    });
+    allConns.forEach(c => c.classList.add('dimmed'));
+    
+    // 結果が0件でもパネルは表示する（マッチ0もメッセージで示す）
+    sidePanel.classList.add('visible');
+    mainGrid.classList.remove('no-panel');
+    
+    if (matched.length === 0) {
+      resultCount.textContent = '0';
+      panelBody.innerHTML = '<div class="no-hit" style="padding:12px; text-align:center; color:var(--text-dim); font-size:11px; font-style:italic">該当するフォルダはこのページ内にありません</div>';
+    } else {
+      resultCount.textContent = matched.length;
+      const ul = document.createElement('ul');
+      ul.id = 'resultList';
+      matched.forEach((n) => {
+        const li = document.createElement('li');
+        const name = n.dataset.name;
+        const lvl = (n.getAttribute('class').match(/node-l(\d)/) || [])[1] || '?';
+        li.innerHTML = `<span class="lvl-badge">L${lvl}</span>${escapeHtml(name)}`;
+        li.addEventListener('click', () => jumpTo(n));
+        ul.appendChild(li);
+      });
+      panelBody.innerHTML = '';
+      panelBody.appendChild(ul);
+    }
+  }
+  
+  function clearHighlight() {
+    allNodes.forEach(n => { n.classList.remove('highlight','dimmed','jump-target'); });
+    allConns.forEach(c => c.classList.remove('dimmed'));
+    // パネルを初期状態（非表示）に戻す
+    sidePanel.classList.remove('visible');
+    mainGrid.classList.add('no-panel');
+    resultCount.textContent = '0';
+    panelBody.innerHTML = '';
+  }
+  
+  // 初期状態: パネル非表示
+  clearHighlight();
+  
+  window.clearSearch = function() {
+    searchInput.value = '';
+    clearHighlight();
+    searchInput.focus();
+  };
+  
+  function jumpTo(node) {
+    const rect = node.querySelector('.node-rect');
+    const x = parseFloat(rect.getAttribute('x'));
+    const y = parseFloat(rect.getAttribute('y'));
+    const w = parseFloat(rect.getAttribute('width'));
+    const containerRect = svgContainer.getBoundingClientRect();
+    svgContainer.scrollTo({ left: x - containerRect.width/2 + w/2, top: y - containerRect.height/2, behavior: 'smooth' });
+    allNodes.forEach(n => n.classList.remove('jump-target'));
+    node.classList.add('jump-target');
+    setTimeout(() => node.classList.remove('jump-target'), 2000);
+  }
+  
+  // URLパラメータから自動検索
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const email = params.get('email');
+    if (email) { searchInput.value = email; doSearch(); }
+  } catch(_) {}
+})();
+</script>
+</body>
+</html>

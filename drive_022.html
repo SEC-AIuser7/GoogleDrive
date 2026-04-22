@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>CEO室_コーポ連携PJ — Drive Map</title>
+<meta name="viewport" content="width=1400, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; }
+:root {
+  --bg: #1a1a1a; --bg-elev: #222; --bg-elev2: #2a2a2a;
+  --border: #333; --text: #e8e8e8; --text-dim: #888;
+  --accent: #8fd9c7; --highlight: #ffb547; --highlight-border: #ff8c00;
+}
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: 'Noto Sans JP', 'Hiragino Sans', sans-serif; min-height: 100vh; }
+.topbar { position: sticky; top: 0; z-index: 100; background: rgba(22,22,22,0.95); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); padding: 14px 28px; }
+.topbar-inner { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.crumb { display: flex; align-items: baseline; gap: 14px; font-family: 'Space Grotesk', sans-serif; flex-wrap: wrap; }
+.crumb a { color: var(--text-dim); text-decoration: none; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; transition: color 0.2s; }
+.crumb a:hover { color: var(--accent); }
+.crumb .title { font-size: 17px; font-weight: 700; color: var(--text); letter-spacing: 0.01em; }
+.stats { display: flex; gap: 18px; margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim); }
+.stats b { color: var(--accent); font-weight: 600; }
+.search-bar { display: flex; gap: 12px; padding: 12px 28px; background: var(--bg-elev); border-bottom: 1px solid var(--border); align-items: stretch; flex-wrap: wrap; }
+.search-input-wrap { flex: 1; min-width: 280px; position: relative; }
+#searchInput { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 13px; padding: 10px 14px 10px 36px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+#searchInput:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(143,217,199,0.1); }
+.search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); pointer-events: none; }
+.clear-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 0 16px; border-radius: 4px; cursor: pointer; font-size: 12px; font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.05em; transition: all 0.2s; }
+.clear-btn:hover { border-color: var(--accent); color: var(--accent); }
+.main-grid { display: grid; grid-template-columns: 1fr 300px; min-height: calc(100vh - 110px); }
+.main-grid.no-panel { grid-template-columns: 1fr; }
+.svg-container { overflow: auto; padding: 20px; background: radial-gradient(circle at 20% 30%, rgba(107,163,214,0.03) 0%, transparent 50%), radial-gradient(circle at 80% 70%, rgba(143,217,199,0.03) 0%, transparent 50%), var(--bg); }
+#tree-svg { display: block; }
+.node { cursor: pointer; transition: opacity 0.25s; }
+.node:hover .node-rect { filter: brightness(1.1); }
+.node.dimmed { opacity: 0.15; }
+.node.highlight .node-rect { fill: var(--highlight) !important; stroke: var(--highlight-border) !important; stroke-width: 1.5 !important; }
+.node.highlight .node-text { fill: #1a1a1a !important; font-weight: 700 !important; }
+.node.jump-target .node-rect { stroke: var(--accent) !important; stroke-width: 2.5 !important; }
+.conn.dimmed { opacity: 0.08 !important; }
+.side-panel { background: var(--bg-elev); border-left: 1px solid var(--border); padding: 16px 18px; overflow-y: auto; max-height: calc(100vh - 110px); position: sticky; top: 110px; display: none; }
+.side-panel.visible { display: block; }
+.panel-title { font-family: 'Space Grotesk', sans-serif; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: baseline; }
+.panel-title b { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 12px; }
+#resultList { list-style: none; padding: 0; margin: 0; }
+#resultList li { padding: 8px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; line-height: 1.4; margin-bottom: 3px; background: var(--bg-elev2); border-left: 2px solid transparent; transition: all 0.15s; word-break: break-all; }
+#resultList li:hover { background: #333; border-left-color: var(--highlight); }
+#resultList li .lvl-badge { display: inline-block; font-size: 9px; font-family: 'JetBrains Mono', monospace; color: var(--text-dim); background: rgba(255,255,255,0.05); padding: 1px 5px; border-radius: 2px; margin-right: 6px; letter-spacing: 0.05em; }
+#resultList .no-hit { padding: 12px; text-align: center; color: var(--text-dim); font-size: 11px; font-style: italic; }
+#tooltip { position: fixed; background: #0d0d0d; border: 1px solid var(--accent); border-radius: 4px; padding: 10px 14px; max-width: 320px; font-size: 11px; color: var(--text); z-index: 1000; pointer-events: none; box-shadow: 0 8px 32px rgba(0,0,0,0.6); display: none; font-family: 'JetBrains Mono', monospace; line-height: 1.5; }
+#tooltip .tt-header { color: var(--accent); font-weight: 600; margin-bottom: 6px; font-family: 'Noto Sans JP', sans-serif; font-size: 12px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+#tooltip .tt-user { padding: 2px 0; }
+#tooltip .tt-role { color: var(--text-dim); font-size: 10px; }
+#tooltip .tt-empty { color: var(--text-dim); font-style: italic; }
+@media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } .side-panel { position: static; max-height: 400px; border-left: none; border-top: 1px solid var(--border); } }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">← 共有ドライブ一覧</a>
+      <a href="../search.html">🔍 権限検索</a>
+      <span class="title">CEO室_コーポ連携PJ</span>
+    </div>
+    <div class="stats">
+      <span><b>81</b> nodes</span>
+      <span><b>13</b> users</span>
+    </div>
+  </div>
+</div>
+<div class="search-bar">
+  <div class="search-input-wrap">
+    <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input id="searchInput" type="text" list="userDatalist" placeholder="メールアドレスを入力してアクセス権限を検索..." autocomplete="off" spellcheck="false">
+    <datalist id="userDatalist">
+      <option value="chiba@dxhr.inc"><option value="jundai.tanada@aethos-inc.jp"><option value="konaka@dxhr.inc"><option value="kubotay@dxhr.inc"><option value="mizuta@allegro-biz.com"><option value="nakagawa.k@dxhr.inc"><option value="okada@dxhr.inc"><option value="osabe@dxhr.inc"><option value="ryuzaki.s@dxhr.inc"><option value="sakamoto.n@dxhr.inc"><option value="sangawa@dxhr.inc"><option value="tamura.k@dxhr.inc"><option value="urayama@dxhr.inc">
+    </datalist>
+  </div>
+  <button class="clear-btn" onclick="clearSearch()">Clear</button>
+</div>
+<div class="main-grid" id="mainGrid">
+  <div class="svg-container" id="svgContainer"><svg id="tree-svg" width="1340" height="1622" viewBox="0 0 1340 1622" xmlns="http://www.w3.org/2000/svg"><g id="connections"><path class="conn" d="M 190 1001.0 L 195.0 1001.0 L 195.0 431.0 L 200 431.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 1001.0 L 195.0 1001.0 L 195.0 1181.0 L 200 1181.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 1001.0 L 195.0 1001.0 L 195.0 1541.0 L 200 1541.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 1001.0 L 195.0 1001.0 L 195.0 1571.0 L 200 1571.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 431.0 L 410.0 431.0 L 410.0 41.0 L 420 41.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 431.0 L 410.0 431.0 L 410.0 71.0 L 420 71.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 431.0 L 410.0 431.0 L 410.0 491.0 L 420 491.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 431.0 L 410.0 431.0 L 410.0 821.0 L 420 821.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 71.0 L 635.0 71.0 L 635.0 71.0 L 650 71.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 491.0 L 635.0 491.0 L 635.0 191.0 L 650 191.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 491.0 L 635.0 491.0 L 635.0 326.0 L 650 326.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 491.0 L 635.0 491.0 L 635.0 371.0 L 650 371.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 491.0 L 635.0 491.0 L 635.0 401.0 L 650 401.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 491.0 L 635.0 491.0 L 635.0 431.0 L 650 431.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 491.0 L 635.0 491.0 L 635.0 461.0 L 650 461.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 491.0 L 635.0 491.0 L 635.0 491.0 L 650 491.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 491.0 L 635.0 491.0 L 635.0 521.0 L 650 521.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 491.0 L 635.0 491.0 L 635.0 551.0 L 650 551.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 491.0 L 635.0 491.0 L 635.0 581.0 L 650 581.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 491.0 L 635.0 491.0 L 635.0 611.0 L 650 611.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 491.0 L 635.0 491.0 L 635.0 641.0 L 650 641.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 491.0 L 635.0 491.0 L 635.0 671.0 L 650 671.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 491.0 L 635.0 491.0 L 635.0 701.0 L 650 701.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 491.0 L 635.0 491.0 L 635.0 731.0 L 650 731.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 491.0 L 635.0 491.0 L 635.0 761.0 L 650 761.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 491.0 L 635.0 491.0 L 635.0 791.0 L 650 791.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 191.0 L 865.0 191.0 L 865.0 101.0 L 880 101.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 191.0 L 865.0 191.0 L 865.0 131.0 L 880 131.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 191.0 L 865.0 191.0 L 865.0 161.0 L 880 161.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 191.0 L 865.0 191.0 L 865.0 191.0 L 880 191.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 191.0 L 865.0 191.0 L 865.0 221.0 L 880 221.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 191.0 L 865.0 191.0 L 865.0 251.0 L 880 251.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 191.0 L 865.0 191.0 L 865.0 281.0 L 880 281.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 131.0 L 1090.0 131.0 L 1090.0 131.0 L 1100 131.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 161.0 L 1090.0 161.0 L 1090.0 161.0 L 1100 161.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 191.0 L 1090.0 191.0 L 1090.0 191.0 L 1100 191.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 251.0 L 1090.0 251.0 L 1090.0 251.0 L 1100 251.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 326.0 L 865.0 326.0 L 865.0 311.0 L 880 311.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 326.0 L 865.0 326.0 L 865.0 341.0 L 880 341.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 311.0 L 1090.0 311.0 L 1090.0 311.0 L 1100 311.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 341.0 L 1090.0 341.0 L 1090.0 341.0 L 1100 341.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 431.0 L 865.0 431.0 L 865.0 431.0 L 880 431.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 431.0 L 1090.0 431.0 L 1090.0 431.0 L 1100 431.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 581.0 L 865.0 581.0 L 865.0 581.0 L 880 581.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 611.0 L 865.0 611.0 L 865.0 611.0 L 880 611.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 641.0 L 865.0 641.0 L 865.0 641.0 L 880 641.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 671.0 L 865.0 671.0 L 865.0 671.0 L 880 671.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 701.0 L 865.0 701.0 L 865.0 701.0 L 880 701.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 731.0 L 865.0 731.0 L 865.0 731.0 L 880 731.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 761.0 L 865.0 761.0 L 865.0 761.0 L 880 761.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 821.0 L 635.0 821.0 L 635.0 821.0 L 650 821.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 851.0 L 420 851.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 881.0 L 420 881.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 911.0 L 420 911.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 941.0 L 420 941.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 971.0 L 420 971.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 1001.0 L 420 1001.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 1031.0 L 420 1031.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 1061.0 L 420 1061.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 1091.0 L 420 1091.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 1121.0 L 420 1121.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 1151.0 L 420 1151.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 1211.0 L 420 1211.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 1271.0 L 420 1271.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 1301.0 L 420 1301.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 1346.0 L 420 1346.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 1391.0 L 420 1391.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 1421.0 L 420 1421.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 1466.0 L 420 1466.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1181.0 L 410.0 1181.0 L 410.0 1511.0 L 420 1511.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1061.0 L 635.0 1061.0 L 635.0 1061.0 L 650 1061.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1121.0 L 635.0 1121.0 L 635.0 1121.0 L 650 1121.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1211.0 L 635.0 1211.0 L 635.0 1181.0 L 650 1181.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1211.0 L 635.0 1211.0 L 635.0 1211.0 L 650 1211.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1211.0 L 635.0 1211.0 L 635.0 1241.0 L 650 1241.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 1211.0 L 865.0 1211.0 L 865.0 1211.0 L 880 1211.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1346.0 L 635.0 1346.0 L 635.0 1331.0 L 650 1331.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1346.0 L 635.0 1346.0 L 635.0 1361.0 L 650 1361.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1466.0 L 635.0 1466.0 L 635.0 1451.0 L 650 1451.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1466.0 L 635.0 1466.0 L 635.0 1481.0 L 650 1481.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/></g><g id="nodes"><g class="node node-l1" data-name="CEO室_コーポ連携PJ" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/0AMY5xrrG7sMjUk9PVA">
+  <rect class="node-rect" x="20" y="990.0" width="170" height="22" rx="2" ry="2" fill="#8fd9c7" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="28" y="1005.0" fill="#0a0a0a" font-size="11" font-weight="bold" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">CEO室_コーポ連携PJ</text>
+  <g class="info-icon" transform="translate(176,1001.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="osabe" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1ImovVx5FIBfykTSpBh3hFEFi9NpAOJr-">
+  <rect class="node-rect" x="200" y="420.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="435.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">osabe</text>
+  <g class="info-icon" transform="translate(386,431.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="法人紹介" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1nACN3drf2A_03C5OZM3Vw3qZ86U0KSDC">
+  <rect class="node-rect" x="420" y="30" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="45.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">法人紹介</text>
+  <g class="info-icon" transform="translate(606,41.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="ABM" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1g9Lg3Cy-_zp1caIbrtjRucmNL3hl29lP">
+  <rect class="node-rect" x="420" y="60.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="75.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">ABM</text>
+  <g class="info-icon" transform="translate(606,71.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="議事録" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1Q7p2QUzcJIoB3Q4T_22bSkVZvdyJQZBy">
+  <rect class="node-rect" x="650" y="60" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="75.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">議事録</text>
+  <g class="info-icon" transform="translate(836,71.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="萩原さんリスト" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1PFAby9wz9c0IkDc9xj3KYsMTNLr40hUp">
+  <rect class="node-rect" x="420" y="480.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="495.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">萩原さんリスト</text>
+  <g class="info-icon" transform="translate(606,491.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="田村さん依頼分" data-emails="nakagawa.k@dxhr.inc,tamura.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;tamura.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1XEx5nYZTadAoNR49-OWH9NuD--SpLnPt">
+  <rect class="node-rect" x="650" y="180.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="195.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">田村さん依頼分</text>
+  <g class="info-icon" transform="translate(836,191.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="010_株式会社エスプールヒューマンソリューションズ" data-emails="nakagawa.k@dxhr.inc,tamura.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;tamura.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1CAhUZJYL7IWRGIV84Ge0_foaJZDCHxQ3">
+  <rect class="node-rect" x="880" y="90" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="105.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">010_株式会社エスプールヒューマンソリュ…</text>
+  <g class="info-icon" transform="translate(1066,101.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="006_株式会社ラ・アトレ" data-emails="nakagawa.k@dxhr.inc,tamura.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;tamura.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1Aog6rEemyxA1Sc0Me3C0S6-Atk_rvr-7">
+  <rect class="node-rect" x="880" y="120.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="135.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">006_株式会社ラ・アトレ</text>
+  <g class="info-icon" transform="translate(1066,131.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="old" data-emails="nakagawa.k@dxhr.inc,tamura.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;tamura.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1dLUKx23s9S1zauZTA5X1GKy5qQ-i2jr5">
+  <rect class="node-rect" x="1100" y="120" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="135.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">old</text>
+  <g class="info-icon" transform="translate(1286,131.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="004_株式会社シノケングループ" data-emails="nakagawa.k@dxhr.inc,tamura.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;tamura.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1VY-Ea3acfh8yLI1QyJfsX3odc5zadaNf">
+  <rect class="node-rect" x="880" y="150.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="165.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">004_株式会社シノケングループ</text>
+  <g class="info-icon" transform="translate(1066,161.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="old" data-emails="nakagawa.k@dxhr.inc,tamura.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;tamura.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1CbEfLYAtaF85SqgB96xscUVBfNmdigpf">
+  <rect class="node-rect" x="1100" y="150" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="165.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">old</text>
+  <g class="info-icon" transform="translate(1286,161.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="001_サンスター文具株式会社" data-emails="nakagawa.k@dxhr.inc,tamura.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;tamura.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/11wMImbQJH1oYyoiZOH71z4i4G0oIbUMe">
+  <rect class="node-rect" x="880" y="180.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="195.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">001_サンスター文具株式会社</text>
+  <g class="info-icon" transform="translate(1066,191.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="old" data-emails="nakagawa.k@dxhr.inc,tamura.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;tamura.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1Dc7FKZ7tRcTVmzoqTVpr-99oZ4YK1bEq">
+  <rect class="node-rect" x="1100" y="180" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="195.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">old</text>
+  <g class="info-icon" transform="translate(1286,191.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="008_日新航空サービス株式会社" data-emails="nakagawa.k@dxhr.inc,tamura.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;tamura.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1Agd5knJPpT05mlHc5_Ms9XLnGk4lFUjK">
+  <rect class="node-rect" x="880" y="210" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="225.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">008_日新航空サービス株式会社</text>
+  <g class="info-icon" transform="translate(1066,221.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="005_株式会社セゾンリアルティ" data-emails="nakagawa.k@dxhr.inc,tamura.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;tamura.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1sByouRJ_S5XXktcxWT3i8Yg_FHZ0z8EQ">
+  <rect class="node-rect" x="880" y="240.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="255.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">005_株式会社セゾンリアルティ</text>
+  <g class="info-icon" transform="translate(1066,251.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="old" data-emails="nakagawa.k@dxhr.inc,tamura.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;tamura.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1ByTB9XEwVty7ynOfrWU_O7fkEUQW98df">
+  <rect class="node-rect" x="1100" y="240" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="255.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">old</text>
+  <g class="info-icon" transform="translate(1286,251.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="009_味の素株式会社" data-emails="nakagawa.k@dxhr.inc,tamura.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;tamura.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1G4fB7chpZLAn7JhtxwBYCuftgnIcawfl">
+  <rect class="node-rect" x="880" y="270" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="285.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">009_味の素株式会社</text>
+  <g class="info-icon" transform="translate(1066,281.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="久保田さん依頼分" data-emails="nakagawa.k@dxhr.inc,kubotay@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;kubotay@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1f2smT-6vjgGlb4ptiA9OmzVzqxaGA8b3">
+  <rect class="node-rect" x="650" y="315.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="330.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">久保田さん依頼分</text>
+  <g class="info-icon" transform="translate(836,326.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="003_株式会社イービーエム" data-emails="nakagawa.k@dxhr.inc,kubotay@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;kubotay@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/10Ks0dGAwvmeiPCOv7HMPuaKpiwA9GE0m">
+  <rect class="node-rect" x="880" y="300.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="315.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">003_株式会社イービーエム</text>
+  <g class="info-icon" transform="translate(1066,311.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="old" data-emails="nakagawa.k@dxhr.inc,kubotay@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;kubotay@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1KILxCXKQHAolJ-jUDsOd-RMDwPyMCRBF">
+  <rect class="node-rect" x="1100" y="300" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="315.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">old</text>
+  <g class="info-icon" transform="translate(1286,311.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="007_株式会社沖潮開発" data-emails="nakagawa.k@dxhr.inc,kubotay@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;kubotay@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1HApnCcG7NexP6evoSN9mrjiruI9t6XI9">
+  <rect class="node-rect" x="880" y="330.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="345.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">007_株式会社沖潮開発</text>
+  <g class="info-icon" transform="translate(1066,341.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="old" data-emails="nakagawa.k@dxhr.inc,kubotay@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;kubotay@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1l3ZMnxgvTQcTk0IrJwm7o-tNGidCpz9r">
+  <rect class="node-rect" x="1100" y="330" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="345.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">old</text>
+  <g class="info-icon" transform="translate(1286,341.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="プロンプト" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1KCMMtcocYuST5Yv96cDQR-DEbQne9zXX">
+  <rect class="node-rect" x="650" y="360" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="375.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">プロンプト</text>
+  <g class="info-icon" transform="translate(836,371.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="000_old" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1QkngrGxlEMwZwvlBPZDdtLOl40A_NKcI">
+  <rect class="node-rect" x="650" y="390" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="405.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">000_old</text>
+  <g class="info-icon" transform="translate(836,401.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="松浦さん依頼分" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1-thwzdLTZyKwSIH0-09vHkGaDVewrCQB">
+  <rect class="node-rect" x="650" y="420.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="435.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">松浦さん依頼分</text>
+  <g class="info-icon" transform="translate(836,431.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="002_サンシステム株式会社" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/14xBew_IQaAlx2qtPTUqJwQ84wgr7QDhW">
+  <rect class="node-rect" x="880" y="420.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="435.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">002_サンシステム株式会社</text>
+  <g class="info-icon" transform="translate(1066,431.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="old" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1SYhhD1j7AksPccZ33rx0WHU99bBoUSyA">
+  <rect class="node-rect" x="1100" y="420" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="435.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">old</text>
+  <g class="info-icon" transform="translate(1286,431.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="010_株式会社エスプールヒューマンソリューションズ" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1zW0r5bKikGiP5P_j54jUzCDagp5zWYeV">
+  <rect class="node-rect" x="650" y="450" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="465.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">010_株式会社エスプールヒューマンソリュ…</text>
+  <g class="info-icon" transform="translate(836,461.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="009_味の素株式会社" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1sJXTXmmoyFr5YGEbpm7iX-NG9yaY6dV6">
+  <rect class="node-rect" x="650" y="480" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="495.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">009_味の素株式会社</text>
+  <g class="info-icon" transform="translate(836,491.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="顧客リスト" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1DLJBKS-23kDys2AON-E_YiipOmOn4IxC">
+  <rect class="node-rect" x="650" y="510" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="525.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">顧客リスト</text>
+  <g class="info-icon" transform="translate(836,521.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="008_日新航空サービス株式会社" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/15kigvEp6RN5DKMtPYOakLitiQfxk8o2w">
+  <rect class="node-rect" x="650" y="540" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="555.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">008_日新航空サービス株式会社</text>
+  <g class="info-icon" transform="translate(836,551.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="005_株式会社セゾンリアルティ" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1l6NKrdPW3XQlRhWL0yoT1jDqjz1tB60m">
+  <rect class="node-rect" x="650" y="570.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="585.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">005_株式会社セゾンリアルティ</text>
+  <g class="info-icon" transform="translate(836,581.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="old" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1yiL9lnNrhHpL-oVEyU5rk92r5JyDN2Nn">
+  <rect class="node-rect" x="880" y="570" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="585.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">old</text>
+  <g class="info-icon" transform="translate(1066,581.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="002_サンシステム株式会社" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/155m_h-oEyBZiq7Y5KOrJUE968nQpRMyp">
+  <rect class="node-rect" x="650" y="600.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="615.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">002_サンシステム株式会社</text>
+  <g class="info-icon" transform="translate(836,611.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="old" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1KRUxyB581OISljAz4X0F0EE692PyUrio">
+  <rect class="node-rect" x="880" y="600" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="615.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">old</text>
+  <g class="info-icon" transform="translate(1066,611.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="003_株式会社イービーエム" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/15hIo8R90yXZc6dh7vzZmZhbkC3SbPmgO">
+  <rect class="node-rect" x="650" y="630.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="645.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">003_株式会社イービーエム</text>
+  <g class="info-icon" transform="translate(836,641.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="old" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1kJxjPs4TH9Lyk76h2GhWhVynssP_CY9x">
+  <rect class="node-rect" x="880" y="630" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="645.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">old</text>
+  <g class="info-icon" transform="translate(1066,641.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="004_株式会社シノケングループ" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1sbrJC_IXroT9XazXM1K6DL7O3p6Oku1s">
+  <rect class="node-rect" x="650" y="660.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="675.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">004_株式会社シノケングループ</text>
+  <g class="info-icon" transform="translate(836,671.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="old" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1O5YBe6f-zg5DUFLJEzQ6_-c1PAlc-PoE">
+  <rect class="node-rect" x="880" y="660" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="675.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">old</text>
+  <g class="info-icon" transform="translate(1066,671.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="006_株式会社ラ・アトレ" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1XtHTAm5HmfBu37mrdaMVMJByYnhNvmvK">
+  <rect class="node-rect" x="650" y="690.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="705.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">006_株式会社ラ・アトレ</text>
+  <g class="info-icon" transform="translate(836,701.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="old" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/10QmFogp_0YiGZGlkwAhljR1CdI8J4Rcq">
+  <rect class="node-rect" x="880" y="690" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="705.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">old</text>
+  <g class="info-icon" transform="translate(1066,701.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="007_株式会社沖潮開発" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1n9LZFRVpfMYVcPv5HtIhoMs7gbldW5jq">
+  <rect class="node-rect" x="650" y="720.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="735.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">007_株式会社沖潮開発</text>
+  <g class="info-icon" transform="translate(836,731.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="old" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1TZ0uL4BXHDFtMZhe4wshwohtoNgMrqgE">
+  <rect class="node-rect" x="880" y="720" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="735.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">old</text>
+  <g class="info-icon" transform="translate(1066,731.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="001_サンスター文具株式会社" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/13JpWG5_4vMkT7axhxIirKKjGOh0HRJPP">
+  <rect class="node-rect" x="650" y="750.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="765.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">001_サンスター文具株式会社</text>
+  <g class="info-icon" transform="translate(836,761.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="old" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1svBOvQpycl1xYs_-KuuaydRfncoJ2GXR">
+  <rect class="node-rect" x="880" y="750" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="765.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">old</text>
+  <g class="info-icon" transform="translate(1066,761.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="参考" data-emails="nakagawa.k@dxhr.inc,urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;nakagawa.k@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1dwJ8RbIxQGK1P1zpyq5_H1P64TfvrV0z">
+  <rect class="node-rect" x="650" y="780" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="795.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">参考</text>
+  <g class="info-icon" transform="translate(836,791.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="NDA締結" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1ak4rXqjmwMq-Bra7cP_Cs3j_Jn8a871q">
+  <rect class="node-rect" x="420" y="810.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="825.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">NDA締結</text>
+  <g class="info-icon" transform="translate(606,821.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="久野様" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1a-rdkqx4Fi4gjO8ag7VqAIBZRsfZTLwk">
+  <rect class="node-rect" x="650" y="810" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="825.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">久野様</text>
+  <g class="info-icon" transform="translate(836,821.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="202602CEO室オンボーディング" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/157TjgdoVkN3DRgMYJKR6OgkmjLsgVptE">
+  <rect class="node-rect" x="200" y="1170.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="1185.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">202602CEO室オンボーディング</text>
+  <g class="info-icon" transform="translate(386,1181.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="サイバー/SPEC　助成金トラブル関係" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/11xXX8yVVMwxAvWlRZ2GTEyDOHuybUlGm">
+  <rect class="node-rect" x="420" y="840" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="855.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">サイバー/SPEC　助成金トラブル関係</text>
+  <g class="info-icon" transform="translate(606,851.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="old" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1pJXcK8iqUqMBERdT_PeRSRuHRW6MuaQ6">
+  <rect class="node-rect" x="420" y="870" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="885.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">old</text>
+  <g class="info-icon" transform="translate(606,881.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="コーポレートIT" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1ymOcbs3zI1edcsfdHWd86t4hs_vtBCKH">
+  <rect class="node-rect" x="420" y="900" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="915.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">コーポレートIT</text>
+  <g class="info-icon" transform="translate(606,911.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="投資家定期報告" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1pVgnidqy7bMtHBsnI6yI-zbI54S-CKcO">
+  <rect class="node-rect" x="420" y="930" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="945.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">投資家定期報告</text>
+  <g class="info-icon" transform="translate(606,941.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="オフィス不動産賃貸借関係" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1tIWx2OEm1Lp__v7MAJCDC2IX59OKXjtg">
+  <rect class="node-rect" x="420" y="960" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="975.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">オフィス不動産賃貸借関係</text>
+  <g class="info-icon" transform="translate(606,971.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="不正防止強化" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1vcIcdnLXO_VFXX56PIQGu9U3NWmXVdGH">
+  <rect class="node-rect" x="420" y="990" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1005.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">不正防止強化</text>
+  <g class="info-icon" transform="translate(606,1001.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="バックオフィス改善系" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1G3Vou-FZ3lvvWq5V0J44R3QfKNOC0JNj">
+  <rect class="node-rect" x="420" y="1020" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1035.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">バックオフィス改善系</text>
+  <g class="info-icon" transform="translate(606,1031.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="営業イネーブルメント" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1KmKok0X_GNrGKwrQP2P5nPujQM_wlRU1">
+  <rect class="node-rect" x="420" y="1050.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1065.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">営業イネーブルメント</text>
+  <g class="info-icon" transform="translate(606,1061.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="営業行動指針検討" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1EvMs2ryNL3caDMlQ4PeZwnl96pMT_IoB">
+  <rect class="node-rect" x="650" y="1050" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1065.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">営業行動指針検討</text>
+  <g class="info-icon" transform="translate(836,1061.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="CVC構想" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1jtvIYico3l4nUwT8243C1v8BtKOZQfd_">
+  <rect class="node-rect" x="420" y="1080" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1095.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">CVC構想</text>
+  <g class="info-icon" transform="translate(606,1091.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="M&amp;A関係" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1wlRYP6PGpkUhj9Hm4Q0MxPxm324LXH20">
+  <rect class="node-rect" x="420" y="1110.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1125.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">M&amp;A関係</text>
+  <g class="info-icon" transform="translate(606,1121.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="202601オーガイ" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1SNxQuqZILD4KgQAgYG5LYV3vx6fCjjXM">
+  <rect class="node-rect" x="650" y="1110" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1125.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">202601オーガイ</text>
+  <g class="info-icon" transform="translate(836,1121.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="AX事業関連" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1ocanI3vsVC-nvSNH8mg6RgjTotlWlDdG">
+  <rect class="node-rect" x="420" y="1140" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1155.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">AX事業関連</text>
+  <g class="info-icon" transform="translate(606,1151.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="CEO室関連業務委託契約" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1pUqvIKp37r9ED7nUmm42D_qlHf_QyI-E">
+  <rect class="node-rect" x="420" y="1200.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1215.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">CEO室関連業務委託契約</text>
+  <g class="info-icon" transform="translate(606,1211.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="稼働明細・請求書" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1XUeduLNl7Q7ea5E6x8dawetyygZDUp0P">
+  <rect class="node-rect" x="650" y="1170" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1185.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">稼働明細・請求書</text>
+  <g class="info-icon" transform="translate(836,1181.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="不要・OLD" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1U4plwP5a_ifCwCHsUhsp46iUqDIoE33x">
+  <rect class="node-rect" x="650" y="1200.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1215.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">不要・OLD</text>
+  <g class="info-icon" transform="translate(836,1211.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="1．棚田氏" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/18j1sBP5Uph08oeMQQUmmKOX9I-rTNc0m">
+  <rect class="node-rect" x="880" y="1200" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1215.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">1．棚田氏</text>
+  <g class="info-icon" transform="translate(1066,1211.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="5.森氏" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1X6OcCR6j4uUFl1JUij0DdLOu7MAgxR5R">
+  <rect class="node-rect" x="650" y="1230" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1245.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">5.森氏</text>
+  <g class="info-icon" transform="translate(836,1241.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="人事採用系" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/10_AXp7zfzTArveSsSTj5BPCBQozS1ms1">
+  <rect class="node-rect" x="420" y="1260" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1275.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">人事採用系</text>
+  <g class="info-icon" transform="translate(606,1271.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="全社共通" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/19hn7oaxVHzOX7-Ugbt3tBxhrtFJYnSYe">
+  <rect class="node-rect" x="420" y="1290" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1305.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">全社共通</text>
+  <g class="info-icon" transform="translate(606,1301.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="営業インセンティブ関係" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1mQ_zoVPWSoCzc3bT7O3Yc-bbBkLdgtun">
+  <rect class="node-rect" x="420" y="1335.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1350.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">営業インセンティブ関係</text>
+  <g class="info-icon" transform="translate(606,1346.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="参考資料" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1xslk_ssbt5aWXJCXHUokt_ySSr7rgF7K">
+  <rect class="node-rect" x="650" y="1320" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1335.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">参考資料</text>
+  <g class="info-icon" transform="translate(836,1331.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="old" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1FwlVQtonkHY41A5jaxIH7w6YoYbD07zk">
+  <rect class="node-rect" x="650" y="1350" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1365.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">old</text>
+  <g class="info-icon" transform="translate(836,1361.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="グループ会社管理" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1_hlehKZvPfK0cmIlRGNYUGTA-GU3GUoJ">
+  <rect class="node-rect" x="420" y="1380" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1395.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">グループ会社管理</text>
+  <g class="info-icon" transform="translate(606,1391.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="202512_社内業務AX" data-emails="konaka@dxhr.inc,okada@dxhr.inc,chiba@dxhr.inc,urayama@dxhr.inc,sakamoto.n@dxhr.inc,mizuta@allegro-biz.com,sangawa@dxhr.inc,osabe@dxhr.inc,ryuzaki.s@dxhr.inc" data-users='[{&quot;email&quot;: &quot;konaka@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;okada@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;chiba@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sakamoto.n@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;mizuta@allegro-biz.com&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;ryuzaki.s@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1-FJ5egn-f8wvW0aUNpi8fgzZw-hmglUd">
+  <rect class="node-rect" x="420" y="1410" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1425.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">202512_社内業務AX</text>
+  <g class="info-icon" transform="translate(606,1421.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="事業計画" data-emails="urayama@dxhr.inc,jundai.tanada@aethos-inc.jp,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;jundai.tanada@aethos-inc.jp&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/111AWVHCT6C1aWiCoEDsueL1kRJqQTKMd">
+  <rect class="node-rect" x="420" y="1455.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1470.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">事業計画</text>
+  <g class="info-icon" transform="translate(606,1466.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="20260126DXHR_事業計画_claude cowork_Fm前田さん" data-emails="urayama@dxhr.inc,jundai.tanada@aethos-inc.jp,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;jundai.tanada@aethos-inc.jp&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1dGlkyo2cCT4C0ufGEfjF3wbowrsrMZ0O">
+  <rect class="node-rect" x="650" y="1440" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1455.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">20260126DXHR_事業計画_cla…</text>
+  <g class="info-icon" transform="translate(836,1451.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="202601DXHR 前田さんからの展開資料" data-emails="urayama@dxhr.inc,jundai.tanada@aethos-inc.jp,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;jundai.tanada@aethos-inc.jp&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1E7lFCEtbRIaRyZk_mI_zJXYU5VROwqLw">
+  <rect class="node-rect" x="650" y="1470" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1485.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">202601DXHR 前田さんからの展開資料</text>
+  <g class="info-icon" transform="translate(836,1481.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="ABM関連" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1ntnNgH_N4qy_Lv53smh7zWwn_VZRyjxY">
+  <rect class="node-rect" x="420" y="1500" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1515.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">ABM関連</text>
+  <g class="info-icon" transform="translate(606,1511.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="AX事業部" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1EYZAMA9rz9FTA2QaiE5Nw2nKJomn_YTw">
+  <rect class="node-rect" x="200" y="1530" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="1545.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">AX事業部</text>
+  <g class="info-icon" transform="translate(386,1541.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="社内定例議事録" data-emails="urayama@dxhr.inc,sangawa@dxhr.inc,osabe@dxhr.inc" data-users='[{&quot;email&quot;: &quot;urayama@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;sangawa@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}, {&quot;email&quot;: &quot;osabe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集者&quot;}]' data-url="https://drive.google.com/drive/folders/1UcIlOXSU9E_LXPOEy3zYHefBAEzPqAAT">
+  <rect class="node-rect" x="200" y="1560" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="1575.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">社内定例議事録</text>
+  <g class="info-icon" transform="translate(386,1571.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g></g></svg></div>
+  <aside class="side-panel" id="sidePanel">
+    <div class="panel-title">該当フォルダ <b id="resultCount">0</b></div>
+    <div id="panelBody"></div>
+  </aside>
+</div>
+<div id="tooltip"></div>
+<script>
+(function(){
+  const svg = document.getElementById('tree-svg');
+  const allNodes = Array.from(svg.querySelectorAll('.node'));
+  const allConns = Array.from(svg.querySelectorAll('.conn'));
+  const searchInput = document.getElementById('searchInput');
+  const panelBody = document.getElementById('panelBody');
+  const resultCount = document.getElementById('resultCount');
+  const sidePanel = document.getElementById('sidePanel');
+  const mainGrid = document.getElementById('mainGrid');
+  const tooltip = document.getElementById('tooltip');
+  const svgContainer = document.getElementById('svgContainer');
+  
+  allNodes.forEach(n => {
+    const rect = n.querySelector('.node-rect');
+    const text = n.querySelector('.node-text');
+    [rect, text].forEach(el => {
+      if (!el) return;
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.info-icon')) return;
+        const url = n.dataset.url;
+        if (url) window.open(url, '_blank');
+      });
+    });
+    const info = n.querySelector('.info-icon');
+    if (info) {
+      info.addEventListener('mouseenter', (e) => showTip(e, n));
+      info.addEventListener('mousemove', (e) => positionTip(e));
+      info.addEventListener('mouseleave', () => hideTip());
+    }
+  });
+  
+  function showTip(e, node) {
+    const name = node.dataset.name;
+    let users;
+    try { users = JSON.parse(node.dataset.users); } catch(_) { users = []; }
+    let h = `<div class="tt-header">${escapeHtml(name)}</div>`;
+    if (users.length === 0) { h += '<div class="tt-empty">権限情報なし</div>'; }
+    else { users.forEach(u => { h += `<div class="tt-user">${escapeHtml(u.email)} <span class="tt-role">${u.role ? '('+escapeHtml(u.role)+')' : ''}</span></div>`; }); }
+    tooltip.innerHTML = h;
+    tooltip.style.display = 'block';
+    positionTip(e);
+  }
+  function positionTip(e) {
+    const pad = 14;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+    if (x + tw > window.innerWidth) x = e.clientX - tw - pad;
+    if (y + th > window.innerHeight) y = e.clientY - th - pad;
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+  }
+  function hideTip() { tooltip.style.display = 'none'; }
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+  
+  let searchTimer = null;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(doSearch, 150);
+  });
+  
+  function doSearch() {
+    const q = searchInput.value.trim().toLowerCase();
+    if (!q) { clearHighlight(); return; }
+    const matched = [];
+    allNodes.forEach(n => {
+      const emails = (n.dataset.emails || '').toLowerCase();
+      const emailList = emails.split(',').filter(Boolean);
+      let hit = false;
+      for (const e of emailList) { if (e === q || e.includes(q)) { hit = true; break; } }
+      if (hit) { n.classList.add('highlight'); n.classList.remove('dimmed'); matched.push(n); }
+      else { n.classList.remove('highlight'); n.classList.add('dimmed'); }
+    });
+    allConns.forEach(c => c.classList.add('dimmed'));
+    
+    // 結果が0件でもパネルは表示する（マッチ0もメッセージで示す）
+    sidePanel.classList.add('visible');
+    mainGrid.classList.remove('no-panel');
+    
+    if (matched.length === 0) {
+      resultCount.textContent = '0';
+      panelBody.innerHTML = '<div class="no-hit" style="padding:12px; text-align:center; color:var(--text-dim); font-size:11px; font-style:italic">該当するフォルダはこのページ内にありません</div>';
+    } else {
+      resultCount.textContent = matched.length;
+      const ul = document.createElement('ul');
+      ul.id = 'resultList';
+      matched.forEach((n) => {
+        const li = document.createElement('li');
+        const name = n.dataset.name;
+        const lvl = (n.getAttribute('class').match(/node-l(\d)/) || [])[1] || '?';
+        li.innerHTML = `<span class="lvl-badge">L${lvl}</span>${escapeHtml(name)}`;
+        li.addEventListener('click', () => jumpTo(n));
+        ul.appendChild(li);
+      });
+      panelBody.innerHTML = '';
+      panelBody.appendChild(ul);
+    }
+  }
+  
+  function clearHighlight() {
+    allNodes.forEach(n => { n.classList.remove('highlight','dimmed','jump-target'); });
+    allConns.forEach(c => c.classList.remove('dimmed'));
+    // パネルを初期状態（非表示）に戻す
+    sidePanel.classList.remove('visible');
+    mainGrid.classList.add('no-panel');
+    resultCount.textContent = '0';
+    panelBody.innerHTML = '';
+  }
+  
+  // 初期状態: パネル非表示
+  clearHighlight();
+  
+  window.clearSearch = function() {
+    searchInput.value = '';
+    clearHighlight();
+    searchInput.focus();
+  };
+  
+  function jumpTo(node) {
+    const rect = node.querySelector('.node-rect');
+    const x = parseFloat(rect.getAttribute('x'));
+    const y = parseFloat(rect.getAttribute('y'));
+    const w = parseFloat(rect.getAttribute('width'));
+    const containerRect = svgContainer.getBoundingClientRect();
+    svgContainer.scrollTo({ left: x - containerRect.width/2 + w/2, top: y - containerRect.height/2, behavior: 'smooth' });
+    allNodes.forEach(n => n.classList.remove('jump-target'));
+    node.classList.add('jump-target');
+    setTimeout(() => node.classList.remove('jump-target'), 2000);
+  }
+  
+  // URLパラメータから自動検索
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const email = params.get('email');
+    if (email) { searchInput.value = email; doSearch(); }
+  } catch(_) {}
+})();
+</script>
+</body>
+</html>

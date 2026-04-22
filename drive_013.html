@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>移行元Agri-hd.com一時保管用 → 移行先reeat.tech — Drive Map</title>
+<meta name="viewport" content="width=1400, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; }
+:root {
+  --bg: #1a1a1a; --bg-elev: #222; --bg-elev2: #2a2a2a;
+  --border: #333; --text: #e8e8e8; --text-dim: #888;
+  --accent: #8fd9c7; --highlight: #ffb547; --highlight-border: #ff8c00;
+}
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: 'Noto Sans JP', 'Hiragino Sans', sans-serif; min-height: 100vh; }
+.topbar { position: sticky; top: 0; z-index: 100; background: rgba(22,22,22,0.95); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); padding: 14px 28px; }
+.topbar-inner { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.crumb { display: flex; align-items: baseline; gap: 14px; font-family: 'Space Grotesk', sans-serif; flex-wrap: wrap; }
+.crumb a { color: var(--text-dim); text-decoration: none; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; transition: color 0.2s; }
+.crumb a:hover { color: var(--accent); }
+.crumb .title { font-size: 17px; font-weight: 700; color: var(--text); letter-spacing: 0.01em; }
+.stats { display: flex; gap: 18px; margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim); }
+.stats b { color: var(--accent); font-weight: 600; }
+.search-bar { display: flex; gap: 12px; padding: 12px 28px; background: var(--bg-elev); border-bottom: 1px solid var(--border); align-items: stretch; flex-wrap: wrap; }
+.search-input-wrap { flex: 1; min-width: 280px; position: relative; }
+#searchInput { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 13px; padding: 10px 14px 10px 36px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+#searchInput:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(143,217,199,0.1); }
+.search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); pointer-events: none; }
+.clear-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 0 16px; border-radius: 4px; cursor: pointer; font-size: 12px; font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.05em; transition: all 0.2s; }
+.clear-btn:hover { border-color: var(--accent); color: var(--accent); }
+.main-grid { display: grid; grid-template-columns: 1fr 300px; min-height: calc(100vh - 110px); }
+.main-grid.no-panel { grid-template-columns: 1fr; }
+.svg-container { overflow: auto; padding: 20px; background: radial-gradient(circle at 20% 30%, rgba(107,163,214,0.03) 0%, transparent 50%), radial-gradient(circle at 80% 70%, rgba(143,217,199,0.03) 0%, transparent 50%), var(--bg); }
+#tree-svg { display: block; }
+.node { cursor: pointer; transition: opacity 0.25s; }
+.node:hover .node-rect { filter: brightness(1.1); }
+.node.dimmed { opacity: 0.15; }
+.node.highlight .node-rect { fill: var(--highlight) !important; stroke: var(--highlight-border) !important; stroke-width: 1.5 !important; }
+.node.highlight .node-text { fill: #1a1a1a !important; font-weight: 700 !important; }
+.node.jump-target .node-rect { stroke: var(--accent) !important; stroke-width: 2.5 !important; }
+.conn.dimmed { opacity: 0.08 !important; }
+.side-panel { background: var(--bg-elev); border-left: 1px solid var(--border); padding: 16px 18px; overflow-y: auto; max-height: calc(100vh - 110px); position: sticky; top: 110px; display: none; }
+.side-panel.visible { display: block; }
+.panel-title { font-family: 'Space Grotesk', sans-serif; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: baseline; }
+.panel-title b { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 12px; }
+#resultList { list-style: none; padding: 0; margin: 0; }
+#resultList li { padding: 8px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; line-height: 1.4; margin-bottom: 3px; background: var(--bg-elev2); border-left: 2px solid transparent; transition: all 0.15s; word-break: break-all; }
+#resultList li:hover { background: #333; border-left-color: var(--highlight); }
+#resultList li .lvl-badge { display: inline-block; font-size: 9px; font-family: 'JetBrains Mono', monospace; color: var(--text-dim); background: rgba(255,255,255,0.05); padding: 1px 5px; border-radius: 2px; margin-right: 6px; letter-spacing: 0.05em; }
+#resultList .no-hit { padding: 12px; text-align: center; color: var(--text-dim); font-size: 11px; font-style: italic; }
+#tooltip { position: fixed; background: #0d0d0d; border: 1px solid var(--accent); border-radius: 4px; padding: 10px 14px; max-width: 320px; font-size: 11px; color: var(--text); z-index: 1000; pointer-events: none; box-shadow: 0 8px 32px rgba(0,0,0,0.6); display: none; font-family: 'JetBrains Mono', monospace; line-height: 1.5; }
+#tooltip .tt-header { color: var(--accent); font-weight: 600; margin-bottom: 6px; font-family: 'Noto Sans JP', sans-serif; font-size: 12px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+#tooltip .tt-user { padding: 2px 0; }
+#tooltip .tt-role { color: var(--text-dim); font-size: 10px; }
+#tooltip .tt-empty { color: var(--text-dim); font-style: italic; }
+@media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } .side-panel { position: static; max-height: 400px; border-left: none; border-top: 1px solid var(--border); } }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">← 共有ドライブ一覧</a>
+      <a href="../search.html">🔍 権限検索</a>
+      <span class="title">移行元Agri-hd.com一時保管用 → 移行先reeat.tech</span>
+    </div>
+    <div class="stats">
+      <span><b>146</b> nodes</span>
+      <span><b>8</b> users</span>
+    </div>
+  </div>
+</div>
+<div class="search-bar">
+  <div class="search-input-wrap">
+    <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input id="searchInput" type="text" list="userDatalist" placeholder="メールアドレスを入力してアクセス権限を検索..." autocomplete="off" spellcheck="false">
+    <datalist id="userDatalist">
+      <option value="coh.to.invest@gmail.com"><option value="endoagro@gmail.com"><option value="maeda@agri-hd.com"><option value="miyata@agri-hd.com"><option value="miyuri@agri-hd.com"><option value="oota@agri-hd.com"><option value="takeda@agri-hd.com"><option value="yuhei.yokohama@gmail.com">
+    </datalist>
+  </div>
+  <button class="clear-btn" onclick="clearSearch()">Clear</button>
+</div>
+<div class="main-grid" id="mainGrid">
+  <div class="svg-container" id="svgContainer"><svg id="tree-svg" width="1340" height="3332" viewBox="0 0 1340 3332" xmlns="http://www.w3.org/2000/svg"><g id="connections"><path class="conn" d="M 190 1661.0 L 195.0 1661.0 L 195.0 41.0 L 200 41.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 1661.0 L 195.0 1661.0 L 195.0 71.0 L 200 71.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 1661.0 L 195.0 1661.0 L 195.0 1604.75 L 200 1604.75" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 1661.0 L 195.0 1661.0 L 195.0 3191.0 L 200 3191.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 1661.0 L 195.0 1661.0 L 195.0 3221.0 L 200 3221.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 1661.0 L 195.0 1661.0 L 195.0 3251.0 L 200 3251.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 1661.0 L 195.0 1661.0 L 195.0 3281.0 L 200 3281.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1604.75 L 410.0 1604.75 L 410.0 161.0 L 420 161.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1604.75 L 410.0 1604.75 L 410.0 251.0 L 420 251.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1604.75 L 410.0 1604.75 L 410.0 281.0 L 420 281.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1604.75 L 410.0 1604.75 L 410.0 783.5 L 420 783.5" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1604.75 L 410.0 1604.75 L 410.0 1484.75 L 420 1484.75" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1604.75 L 410.0 1604.75 L 410.0 2096.0 L 420 2096.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1604.75 L 410.0 1604.75 L 410.0 2531.0 L 420 2531.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1604.75 L 410.0 1604.75 L 410.0 2598.5 L 420 2598.5" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1604.75 L 410.0 1604.75 L 410.0 2711.0 L 420 2711.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1604.75 L 410.0 1604.75 L 410.0 2808.5 L 420 2808.5" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1604.75 L 410.0 1604.75 L 410.0 3048.5 L 420 3048.5" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 161.0 L 635.0 161.0 L 635.0 101.0 L 650 101.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 161.0 L 635.0 161.0 L 635.0 131.0 L 650 131.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 161.0 L 635.0 161.0 L 635.0 161.0 L 650 161.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 161.0 L 635.0 161.0 L 635.0 191.0 L 650 191.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 161.0 L 635.0 161.0 L 635.0 221.0 L 650 221.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 131.0 L 865.0 131.0 L 865.0 131.0 L 880 131.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 191.0 L 865.0 191.0 L 865.0 191.0 L 880 191.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 221.0 L 865.0 221.0 L 865.0 221.0 L 880 221.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 251.0 L 635.0 251.0 L 635.0 251.0 L 650 251.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 783.5 L 635.0 783.5 L 635.0 783.5 L 650 783.5" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 783.5 L 865.0 783.5 L 865.0 401.0 L 880 401.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 783.5 L 865.0 783.5 L 865.0 581.0 L 880 581.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 783.5 L 865.0 783.5 L 865.0 791.0 L 880 791.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 783.5 L 865.0 783.5 L 865.0 1001.0 L 880 1001.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 783.5 L 865.0 783.5 L 865.0 1166.0 L 880 1166.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 401.0 L 1090.0 401.0 L 1090.0 311.0 L 1100 311.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 401.0 L 1090.0 401.0 L 1090.0 341.0 L 1100 341.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 401.0 L 1090.0 401.0 L 1090.0 371.0 L 1100 371.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 401.0 L 1090.0 401.0 L 1090.0 401.0 L 1100 401.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 401.0 L 1090.0 401.0 L 1090.0 431.0 L 1100 431.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 401.0 L 1090.0 401.0 L 1090.0 461.0 L 1100 461.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 401.0 L 1090.0 401.0 L 1090.0 491.0 L 1100 491.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 581.0 L 1090.0 581.0 L 1090.0 521.0 L 1100 521.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 581.0 L 1090.0 581.0 L 1090.0 551.0 L 1100 551.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 581.0 L 1090.0 581.0 L 1090.0 581.0 L 1100 581.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 581.0 L 1090.0 581.0 L 1090.0 611.0 L 1100 611.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 581.0 L 1090.0 581.0 L 1090.0 641.0 L 1100 641.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 791.0 L 1090.0 791.0 L 1090.0 671.0 L 1100 671.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 791.0 L 1090.0 791.0 L 1090.0 701.0 L 1100 701.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 791.0 L 1090.0 791.0 L 1090.0 731.0 L 1100 731.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 791.0 L 1090.0 791.0 L 1090.0 761.0 L 1100 761.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 791.0 L 1090.0 791.0 L 1090.0 791.0 L 1100 791.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 791.0 L 1090.0 791.0 L 1090.0 821.0 L 1100 821.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 791.0 L 1090.0 791.0 L 1090.0 851.0 L 1100 851.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 791.0 L 1090.0 791.0 L 1090.0 881.0 L 1100 881.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 791.0 L 1090.0 791.0 L 1090.0 911.0 L 1100 911.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1001.0 L 1090.0 1001.0 L 1090.0 941.0 L 1100 941.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1001.0 L 1090.0 1001.0 L 1090.0 971.0 L 1100 971.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1001.0 L 1090.0 1001.0 L 1090.0 1001.0 L 1100 1001.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1001.0 L 1090.0 1001.0 L 1090.0 1031.0 L 1100 1031.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1001.0 L 1090.0 1001.0 L 1090.0 1061.0 L 1100 1061.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1166.0 L 1090.0 1166.0 L 1090.0 1091.0 L 1100 1091.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1166.0 L 1090.0 1166.0 L 1090.0 1121.0 L 1100 1121.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1166.0 L 1090.0 1166.0 L 1090.0 1151.0 L 1100 1151.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1166.0 L 1090.0 1166.0 L 1090.0 1181.0 L 1100 1181.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1166.0 L 1090.0 1166.0 L 1090.0 1211.0 L 1100 1211.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1166.0 L 1090.0 1166.0 L 1090.0 1241.0 L 1100 1241.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1484.75 L 635.0 1484.75 L 635.0 1308.5 L 650 1308.5" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1484.75 L 635.0 1484.75 L 635.0 1421.0 L 650 1421.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1484.75 L 635.0 1484.75 L 635.0 1451.0 L 650 1451.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1484.75 L 635.0 1484.75 L 635.0 1481.0 L 650 1481.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1484.75 L 635.0 1484.75 L 635.0 1511.0 L 650 1511.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1484.75 L 635.0 1484.75 L 635.0 1541.0 L 650 1541.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1484.75 L 635.0 1484.75 L 635.0 1571.0 L 650 1571.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1484.75 L 635.0 1484.75 L 635.0 1601.0 L 650 1601.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1484.75 L 635.0 1484.75 L 635.0 1631.0 L 650 1631.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 1484.75 L 635.0 1484.75 L 635.0 1661.0 L 650 1661.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 1308.5 L 865.0 1308.5 L 865.0 1271.0 L 880 1271.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 1308.5 L 865.0 1308.5 L 865.0 1346.0 L 880 1346.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1346.0 L 1090.0 1346.0 L 1090.0 1301.0 L 1100 1301.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1346.0 L 1090.0 1346.0 L 1090.0 1331.0 L 1100 1331.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1346.0 L 1090.0 1346.0 L 1090.0 1361.0 L 1100 1361.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 1346.0 L 1090.0 1346.0 L 1090.0 1391.0 L 1100 1391.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2096.0 L 635.0 2096.0 L 635.0 1691.0 L 650 1691.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2096.0 L 635.0 2096.0 L 635.0 1721.0 L 650 1721.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2096.0 L 635.0 2096.0 L 635.0 1751.0 L 650 1751.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2096.0 L 635.0 2096.0 L 635.0 1781.0 L 650 1781.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2096.0 L 635.0 2096.0 L 635.0 1811.0 L 650 1811.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2096.0 L 635.0 2096.0 L 635.0 1841.0 L 650 1841.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2096.0 L 635.0 2096.0 L 635.0 1871.0 L 650 1871.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2096.0 L 635.0 2096.0 L 635.0 1901.0 L 650 1901.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2096.0 L 635.0 2096.0 L 635.0 1931.0 L 650 1931.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2096.0 L 635.0 2096.0 L 635.0 2118.5 L 650 2118.5" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2096.0 L 635.0 2096.0 L 635.0 2441.0 L 650 2441.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2096.0 L 635.0 2096.0 L 635.0 2471.0 L 650 2471.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2096.0 L 635.0 2096.0 L 635.0 2501.0 L 650 2501.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 1871.0 L 865.0 1871.0 L 865.0 1871.0 L 880 1871.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 1931.0 L 865.0 1931.0 L 865.0 1931.0 L 880 1931.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 2118.5 L 865.0 2118.5 L 865.0 1961.0 L 880 1961.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 2118.5 L 865.0 2118.5 L 865.0 1991.0 L 880 1991.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 2118.5 L 865.0 2118.5 L 865.0 2051.0 L 880 2051.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 2118.5 L 865.0 2118.5 L 865.0 2111.0 L 880 2111.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 2118.5 L 865.0 2118.5 L 865.0 2276.0 L 880 2276.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 2051.0 L 1090.0 2051.0 L 1090.0 2021.0 L 1100 2021.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 2051.0 L 1090.0 2051.0 L 1090.0 2051.0 L 1100 2051.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 2051.0 L 1090.0 2051.0 L 1090.0 2081.0 L 1100 2081.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 2276.0 L 1090.0 2276.0 L 1090.0 2141.0 L 1100 2141.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 2276.0 L 1090.0 2276.0 L 1090.0 2171.0 L 1100 2171.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 2276.0 L 1090.0 2276.0 L 1090.0 2201.0 L 1100 2201.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 2276.0 L 1090.0 2276.0 L 1090.0 2231.0 L 1100 2231.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 2276.0 L 1090.0 2276.0 L 1090.0 2261.0 L 1100 2261.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 2276.0 L 1090.0 2276.0 L 1090.0 2291.0 L 1100 2291.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 2276.0 L 1090.0 2276.0 L 1090.0 2321.0 L 1100 2321.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 2276.0 L 1090.0 2276.0 L 1090.0 2351.0 L 1100 2351.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 2276.0 L 1090.0 2276.0 L 1090.0 2381.0 L 1100 2381.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 2276.0 L 1090.0 2276.0 L 1090.0 2411.0 L 1100 2411.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2598.5 L 635.0 2598.5 L 635.0 2561.0 L 650 2561.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2598.5 L 635.0 2598.5 L 635.0 2636.0 L 650 2636.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 2636.0 L 865.0 2636.0 L 865.0 2591.0 L 880 2591.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 2636.0 L 865.0 2636.0 L 865.0 2621.0 L 880 2621.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 2636.0 L 865.0 2636.0 L 865.0 2651.0 L 880 2651.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 2636.0 L 865.0 2636.0 L 865.0 2681.0 L 880 2681.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2808.5 L 635.0 2808.5 L 635.0 2756.0 L 650 2756.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2808.5 L 635.0 2808.5 L 635.0 2801.0 L 650 2801.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2808.5 L 635.0 2808.5 L 635.0 2831.0 L 650 2831.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 2808.5 L 635.0 2808.5 L 635.0 2861.0 L 650 2861.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 2756.0 L 865.0 2756.0 L 865.0 2741.0 L 880 2741.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 2756.0 L 865.0 2756.0 L 865.0 2771.0 L 880 2771.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 2771.0 L 1090.0 2771.0 L 1090.0 2771.0 L 1100 2771.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 2801.0 L 865.0 2801.0 L 865.0 2801.0 L 880 2801.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 2801.0 L 1090.0 2801.0 L 1090.0 2801.0 L 1100 2801.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 3048.5 L 635.0 3048.5 L 635.0 2936.0 L 650 2936.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 3048.5 L 635.0 3048.5 L 635.0 3011.0 L 650 3011.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 3048.5 L 635.0 3048.5 L 635.0 3071.0 L 650 3071.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 3048.5 L 635.0 3048.5 L 635.0 3131.0 L 650 3131.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 3048.5 L 635.0 3048.5 L 635.0 3161.0 L 650 3161.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 2936.0 L 865.0 2936.0 L 865.0 2891.0 L 880 2891.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 2936.0 L 865.0 2936.0 L 865.0 2921.0 L 880 2921.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 2936.0 L 865.0 2936.0 L 865.0 2951.0 L 880 2951.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 2936.0 L 865.0 2936.0 L 865.0 2981.0 L 880 2981.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 3011.0 L 865.0 3011.0 L 865.0 3011.0 L 880 3011.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 3071.0 L 865.0 3071.0 L 865.0 3041.0 L 880 3041.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 3071.0 L 865.0 3071.0 L 865.0 3071.0 L 880 3071.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 3071.0 L 865.0 3071.0 L 865.0 3101.0 L 880 3101.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 3041.0 L 1090.0 3041.0 L 1090.0 3041.0 L 1100 3041.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 3071.0 L 1090.0 3071.0 L 1090.0 3071.0 L 1100 3071.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 3251.0 L 410.0 3251.0 L 410.0 3251.0 L 420 3251.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/></g><g id="nodes"><g class="node node-l1" data-name="移行元Agri-hd.com一時保管用 → 移行先reeat.tech" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/0AMI9fGA70x08Uk9PVA">
+  <rect class="node-rect" x="20" y="1650.0" width="170" height="22" rx="2" ry="2" fill="#8fd9c7" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="28" y="1665.0" fill="#0a0a0a" font-size="11" font-weight="bold" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">移行元Agri-hd.com一時保管用 →…</text>
+  <g class="info-icon" transform="translate(176,1661.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="契約書類" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1bocWJ0Bb-rJ8ArdxCXusMlxJ0OacKQgi">
+  <rect class="node-rect" x="200" y="30" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="45.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">契約書類</text>
+  <g class="info-icon" transform="translate(386,41.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="その他アグリ" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1ZE3kU7xWZ5tEHJzMNXa9aVR5n6PHcIzy">
+  <rect class="node-rect" x="200" y="60" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="75.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">その他アグリ</text>
+  <g class="info-icon" transform="translate(386,71.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="共有元その他アド" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1DPrhbEIZzZU88eWXSkW-ai2twkoliHR9">
+  <rect class="node-rect" x="200" y="1593.75" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="1608.75" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">共有元その他アド</text>
+  <g class="info-icon" transform="translate(386,1604.75)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="nomichi@agri-hd.com" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1XLyDebheQq8T64FKfPytindov4Xm36wn">
+  <rect class="node-rect" x="420" y="150.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="165.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">nomichi@agri-hd.com</text>
+  <g class="info-icon" transform="translate(606,161.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="藤田さん" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1KCevewl9rQPtlTBEfITMhgGK6XpR29Kr">
+  <rect class="node-rect" x="650" y="90" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="105.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">藤田さん</text>
+  <g class="info-icon" transform="translate(836,101.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="アグリ新" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1eOCcyd2w5SvE_Wll-7_J1V1VMM_QyAaA">
+  <rect class="node-rect" x="650" y="120.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="135.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">アグリ新</text>
+  <g class="info-icon" transform="translate(836,131.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="5月" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1S20XPOl5H_hxwaNfo1tiXReJ1784UpNw">
+  <rect class="node-rect" x="880" y="120" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="135.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">5月</text>
+  <g class="info-icon" transform="translate(1066,131.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="アグリ" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1l0b9hMY2U6_7cQZTOhx5cDzLDFx8phi2">
+  <rect class="node-rect" x="650" y="150" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="165.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">アグリ</text>
+  <g class="info-icon" transform="translate(836,161.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="ヘヤクレス" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1NDD1QF71dXOIrQCnGUsK2T8yKAWp4V6v">
+  <rect class="node-rect" x="650" y="180.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="195.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">ヘヤクレス</text>
+  <g class="info-icon" transform="translate(836,191.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="5月" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1ePyMfB2WZ8uorNWdNk9-0b84XcqNIcxY">
+  <rect class="node-rect" x="880" y="180" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="195.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">5月</text>
+  <g class="info-icon" transform="translate(1066,191.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="リグロス" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1_gpj_pLHUuIzrBufVYlbR1cNSIRJcMG0">
+  <rect class="node-rect" x="650" y="210.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="225.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">リグロス</text>
+  <g class="info-icon" transform="translate(836,221.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="5月" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1oiqCzdE9Bwl5Cd_s5IriErneVacvdz6b">
+  <rect class="node-rect" x="880" y="210" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="225.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">5月</text>
+  <g class="info-icon" transform="translate(1066,221.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="narita@agri-hd.com" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1er81t2GUemMe_CStrQljYgoG3ZNl6lyR">
+  <rect class="node-rect" x="420" y="240.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="255.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">narita@agri-hd.com</text>
+  <g class="info-icon" transform="translate(606,251.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="BENTOLABO" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/14UkXLt_PUUkOKUV3GbDAJARl2Pugna-v">
+  <rect class="node-rect" x="650" y="240" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="255.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">BENTOLABO</text>
+  <g class="info-icon" transform="translate(836,251.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="shinjo@agri-hd.com" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1djPriFb53oOzMiIJ8NTOzQqqlbYSoEpD">
+  <rect class="node-rect" x="420" y="270" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="285.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">shinjo@agri-hd.com</text>
+  <g class="info-icon" transform="translate(606,281.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="yui@agri-hd.com" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/10PaRozXalMsEw-EfTiPFSHS3yOJyruA_">
+  <rect class="node-rect" x="420" y="772.5" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="787.5" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">yui@agri-hd.com</text>
+  <g class="info-icon" transform="translate(606,783.5)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="制作_all" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1OQCUl-3Nc2OVNqRMeMw9Kor7Xi2flf0S">
+  <rect class="node-rect" x="650" y="772.5" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="787.5" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">制作_all</text>
+  <g class="info-icon" transform="translate(836,783.5)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="agri_document" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1uwTuhx4KLT4xs0lqgNw0o1sZPS6EKsuU">
+  <rect class="node-rect" x="880" y="390.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="405.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">agri_document</text>
+  <g class="info-icon" transform="translate(1066,401.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="ref_資料" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1KrvA9PEz2Txs5PlgUkAOTlItn5ILSeKU">
+  <rect class="node-rect" x="1100" y="300" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="315.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">ref_資料</text>
+  <g class="info-icon" transform="translate(1286,311.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="dxhr_logo_data" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1Q8hp2TlwMeYBMBgYMFDlHOcQEbusknW0">
+  <rect class="node-rect" x="1100" y="330" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="345.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">dxhr_logo_data</text>
+  <g class="info-icon" transform="translate(1286,341.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="DXHR_web用資料" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1Ua8TIOvGoYREqqf94uhUupnQQMieYiwd">
+  <rect class="node-rect" x="1100" y="360" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="375.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">DXHR_web用資料</text>
+  <g class="info-icon" transform="translate(1286,371.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="営業資料" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1jAtAmepYtGcxApyw8AEHQds0Ib4r96lK">
+  <rect class="node-rect" x="1100" y="390" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="405.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">営業資料</text>
+  <g class="info-icon" transform="translate(1286,401.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="b_card" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1nibF218oM7sZ8kpkvR1LZsgr04A7LvOQ">
+  <rect class="node-rect" x="1100" y="420" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="435.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">b_card</text>
+  <g class="info-icon" transform="translate(1286,431.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="MTG資料" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1p_Zj903IkmLAnmy2yCvO40S9gNVD_dw6">
+  <rect class="node-rect" x="1100" y="450" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="465.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">MTG資料</text>
+  <g class="info-icon" transform="translate(1286,461.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="dxhr_bcard" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1tmSMhgVr4kVQSToj_x53guXTwRzXFggM">
+  <rect class="node-rect" x="1100" y="480" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="495.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">dxhr_bcard</text>
+  <g class="info-icon" transform="translate(1286,491.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="tech_bridge" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1-UX5rhl0K4jBgoT1uF0k61SKAWGvu7Ok">
+  <rect class="node-rect" x="880" y="570.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="585.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">tech_bridge</text>
+  <g class="info-icon" transform="translate(1066,581.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="RPA" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1-tPlILJFZIa5j9r5nQ0ChsJ7ADCSHWor">
+  <rect class="node-rect" x="1100" y="510" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="525.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">RPA</text>
+  <g class="info-icon" transform="translate(1286,521.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="line_運用" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/11kQWbigy1T90hyYm3c3f2SPqvH3zstGZ">
+  <rect class="node-rect" x="1100" y="540" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="555.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">line_運用</text>
+  <g class="info-icon" transform="translate(1286,551.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="tech_bridge_資料" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1CWEBHpMLKSDMUeVtHi34Qj62cUfZDemk">
+  <rect class="node-rect" x="1100" y="570" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="585.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">tech_bridge_資料</text>
+  <g class="info-icon" transform="translate(1286,581.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="fv_sample" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1GLQNmB1-fNLoNdkCx8HQUU9KWskAlQOm">
+  <rect class="node-rect" x="1100" y="600" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="615.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">fv_sample</text>
+  <g class="info-icon" transform="translate(1286,611.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="tech_logo" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1P-qVGqgSwTppEVgJy3tPBOhVafinisvt">
+  <rect class="node-rect" x="1100" y="630" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="645.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">tech_logo</text>
+  <g class="info-icon" transform="translate(1286,641.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="DBM_contents" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1kGR0fAhyWpwtvkf5Jg2klOwAnm4CSt2s">
+  <rect class="node-rect" x="880" y="780.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="795.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">DBM_contents</text>
+  <g class="info-icon" transform="translate(1066,791.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="DBM_meishi" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1V7ZrLCqgY8fE03wTlsxx5YHbY_MjG7KH">
+  <rect class="node-rect" x="1100" y="660" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="675.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">DBM_meishi</text>
+  <g class="info-icon" transform="translate(1286,671.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="DBM_資料" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1capauw-Sr0r13Snwr955XKb84fQUxzqt">
+  <rect class="node-rect" x="1100" y="690" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="705.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">DBM_資料</text>
+  <g class="info-icon" transform="translate(1286,701.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="up_logo_data" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1cbIJJQ6_DA6LCIAjqk5G784YEUtOUrZy">
+  <rect class="node-rect" x="1100" y="720" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="735.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">up_logo_data</text>
+  <g class="info-icon" transform="translate(1286,731.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="損保資料data" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1hj3-eBt62xdQ7AJpoDUHYMtwP5lq92yx">
+  <rect class="node-rect" x="1100" y="750" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="765.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">損保資料data</text>
+  <g class="info-icon" transform="translate(1286,761.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="求人サイトUP_web" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1mKsPzuUzLCoZp1qRR4mBNjR4wR_tlXw5">
+  <rect class="node-rect" x="1100" y="780" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="795.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">求人サイトUP_web</text>
+  <g class="info-icon" transform="translate(1286,791.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="屋根健診" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1rr421vg1m5XEb9pXuT7UBNRdpe33wWgz">
+  <rect class="node-rect" x="1100" y="810" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="825.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">屋根健診</text>
+  <g class="info-icon" transform="translate(1286,821.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="up_資料" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1v3vxWYaXIE5ssSoMrVrTIZIZp7fP6Hdr">
+  <rect class="node-rect" x="1100" y="840" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="855.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">up_資料</text>
+  <g class="info-icon" transform="translate(1286,851.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="google仕事検索SEO対策" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1wBqk6JZCSib9lBiO2oZZ_fyCa7QzEjon">
+  <rect class="node-rect" x="1100" y="870" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="885.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">google仕事検索SEO対策</text>
+  <g class="info-icon" transform="translate(1286,881.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="DBM_logo_summary" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1yNwRmzJyBqTZnsoz_mCNi9fU_OIsIR7O">
+  <rect class="node-rect" x="1100" y="900" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="915.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">DBM_logo_summary</text>
+  <g class="info-icon" transform="translate(1286,911.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="nihon" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1_SM8jA7jUZ00fgaTlGUj9rydlvVXaAQZ">
+  <rect class="node-rect" x="880" y="990.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1005.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">nihon</text>
+  <g class="info-icon" transform="translate(1066,1001.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="nihon_online_saiyo" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/18gRZR3DZmmWxLFM2v8-0dv67Xr0atXg_">
+  <rect class="node-rect" x="1100" y="930" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="945.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">nihon_online_saiyo</text>
+  <g class="info-icon" transform="translate(1286,941.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="nihon_data" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1B5V5K40uHq-sRUnLjwdonHrvtemEo4rT">
+  <rect class="node-rect" x="1100" y="960" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="975.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">nihon_data</text>
+  <g class="info-icon" transform="translate(1286,971.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="DaijiroFujita_51-89_b_card" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1Xt95qDJzxIrxH3QpUp99fyyA-nFkj2fX">
+  <rect class="node-rect" x="1100" y="990" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1005.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">DaijiroFujita_51-89_b…</text>
+  <g class="info-icon" transform="translate(1286,1001.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="nihon_b_card" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1Z0UOMHsgPTZS6_xMLlXU_65Ynr4rnimX">
+  <rect class="node-rect" x="1100" y="1020" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1035.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">nihon_b_card</text>
+  <g class="info-icon" transform="translate(1286,1031.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="nihon-fb-cover" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1sARVOlDUcOK9QocYh1z4dtjiVg-YQF3W">
+  <rect class="node-rect" x="1100" y="1050" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1065.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">nihon-fb-cover</text>
+  <g class="info-icon" transform="translate(1286,1061.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="bento_labo" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1TY8w38-mxH1YecJsyINLo2qty6NO-823">
+  <rect class="node-rect" x="880" y="1155.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1170.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">bento_labo</text>
+  <g class="info-icon" transform="translate(1066,1166.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="bento_labo" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1l_THkP0JzAkIlQIFUK8ul3CSZo_nxOlc">
+  <rect class="node-rect" x="1100" y="1080" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1095.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">bento_labo</text>
+  <g class="info-icon" transform="translate(1286,1091.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="pic" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1fYF1pq8DsXia5bDKbitYUqD58xRJ1Sbl">
+  <rect class="node-rect" x="1100" y="1110" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1125.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">pic</text>
+  <g class="info-icon" transform="translate(1286,1121.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="endy&#x27;s_logo" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1mqGDuUh1YXrRmz8vG4dKYgiLfyIUtyPp">
+  <rect class="node-rect" x="1100" y="1140" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1155.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">endy&#x27;s_logo</text>
+  <g class="info-icon" transform="translate(1286,1151.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="bentolabo.com" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1p8lghzHJsQYSCfwjn23GegHVh4DuSdjQ">
+  <rect class="node-rect" x="1100" y="1170" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1185.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">bentolabo.com</text>
+  <g class="info-icon" transform="translate(1286,1181.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="endy&#x27;s_line" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1uVHHn6NP9zf6GT1c0w7sBwZP_v2YnyrJ">
+  <rect class="node-rect" x="1100" y="1200" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1215.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">endy&#x27;s_line</text>
+  <g class="info-icon" transform="translate(1286,1211.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="endo_logo" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1vSs9TiZozrnMWXlfezDJViIYPYiVRutI">
+  <rect class="node-rect" x="1100" y="1230" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1245.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">endo_logo</text>
+  <g class="info-icon" transform="translate(1286,1241.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="y.moriyama@agri-hd.com" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1yYJJN9GbxCdkjHRL7GCsp5vs4pS88f6A">
+  <rect class="node-rect" x="420" y="1473.75" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1488.75" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">y.moriyama@agri-hd.com</text>
+  <g class="info-icon" transform="translate(606,1484.75)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="弁当・ソースラベル" data-emails="miyata@agri-hd.com,oota@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;oota@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1l88QajsEs2dqPo40sF2Vy3WYj-StuR29">
+  <rect class="node-rect" x="650" y="1297.5" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1312.5" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">弁当・ソースラベル</text>
+  <g class="info-icon" transform="translate(836,1308.5)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="弁デリ用ラベル、シール" data-emails="miyata@agri-hd.com,oota@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;oota@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1uHFt0WzwOhp0Bl8jBgRY-s732WdonQRU">
+  <rect class="node-rect" x="880" y="1260" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1275.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">弁デリ用ラベル、シール</text>
+  <g class="info-icon" transform="translate(1066,1271.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="エンディーズキッチン" data-emails="miyata@agri-hd.com,oota@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;oota@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1F_wm92WFOAAGFg5Lh77GPW4l_-z0Uslm">
+  <rect class="node-rect" x="880" y="1335.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1350.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">エンディーズキッチン</text>
+  <g class="info-icon" transform="translate(1066,1346.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="ゴージャス" data-emails="miyata@agri-hd.com,oota@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;oota@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1ScZS9IPbOZjrztA7gxsfXbRgwKepvoqA">
+  <rect class="node-rect" x="1100" y="1290" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1305.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">ゴージャス</text>
+  <g class="info-icon" transform="translate(1286,1301.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="肉系" data-emails="miyata@agri-hd.com,oota@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;oota@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1TFrfmruzlvWXfJ4LrGs-Z22QJUr59XM0">
+  <rect class="node-rect" x="1100" y="1320" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1335.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">肉系</text>
+  <g class="info-icon" transform="translate(1286,1331.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="魚系" data-emails="miyata@agri-hd.com,oota@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;oota@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1VLMkfJgBYMJ8rC7x8sdHGjpNS_-XxtUz">
+  <rect class="node-rect" x="1100" y="1350" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1365.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">魚系</text>
+  <g class="info-icon" transform="translate(1286,1361.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="ヴィーガン系" data-emails="miyata@agri-hd.com,oota@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;oota@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1q9Ae7oB1z1ZwC64DxpX4STM1SX0xJp-U">
+  <rect class="node-rect" x="1100" y="1380" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="1395.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">ヴィーガン系</text>
+  <g class="info-icon" transform="translate(1286,1391.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="売上・受注管理" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1ysBZ4eNyZKryQhVGmJg2z9iQaMo9lmfn">
+  <rect class="node-rect" x="650" y="1410" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1425.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">売上・受注管理</text>
+  <g class="info-icon" transform="translate(836,1421.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="レシピ" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/13ZVQmBhIIeOELYIyUdI2Fpp9jtoFdDPF">
+  <rect class="node-rect" x="650" y="1440" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1455.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">レシピ</text>
+  <g class="info-icon" transform="translate(836,1451.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="画像諸々" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1tLUgVUA2GOfV8SndpHqjF6WLY4geJ1vL">
+  <rect class="node-rect" x="650" y="1470" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1485.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">画像諸々</text>
+  <g class="info-icon" transform="translate(836,1481.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="仕入管理" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1uDGNT1pR-DO-bsNwGto8QmaiQ_2xyqh-">
+  <rect class="node-rect" x="650" y="1500" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1515.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">仕入管理</text>
+  <g class="info-icon" transform="translate(836,1511.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="人事・スタッフ関連" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1xKgQLgtQ2zZIjoaUhgj_tMgbzUJthe_e">
+  <rect class="node-rect" x="650" y="1530" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1545.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">人事・スタッフ関連</text>
+  <g class="info-icon" transform="translate(836,1541.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="その他" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1TMsfwV_qj-kCsGrn81NDtuMTQpL2if2H">
+  <rect class="node-rect" x="650" y="1560" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1575.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">その他</text>
+  <g class="info-icon" transform="translate(836,1571.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="店頭販売" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1UrUzt2XU9b_enraCyKQN2oB8U2W8jK9c">
+  <rect class="node-rect" x="650" y="1590" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1605.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">店頭販売</text>
+  <g class="info-icon" transform="translate(836,1601.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="厨房オペレーションテスト" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1vY3fk92U06Jqtxy_miFOZv_41ZvYs10e">
+  <rect class="node-rect" x="650" y="1620" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1635.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">厨房オペレーションテスト</text>
+  <g class="info-icon" transform="translate(836,1631.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="エックスキッチン関連" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/176ifkjoXYjVj0L4RgUFnZNGQiH2vWijK">
+  <rect class="node-rect" x="650" y="1650" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1665.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">エックスキッチン関連</text>
+  <g class="info-icon" transform="translate(836,1661.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="endo@agri-hd.com" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/100zJ_vfyck2NuLvWAuwJqYmYkGYVKVCA">
+  <rect class="node-rect" x="420" y="2085.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="2100.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">endo@agri-hd.com</text>
+  <g class="info-icon" transform="translate(606,2096.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="20231004110728.zip (Unzipped Files)" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1zKQ2S1V5XDIFYmKjTUyQMgA1-fcnf8q0">
+  <rect class="node-rect" x="650" y="1680" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1695.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">20231004110728.zip (U…</text>
+  <g class="info-icon" transform="translate(836,1691.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="データドッグ9月分" data-emails="miyata@agri-hd.com,oota@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;oota@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1_dP7dHhNxVIlk15oXhs7DXVJY7lJhQ-M">
+  <rect class="node-rect" x="650" y="1710" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1725.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">データドッグ9月分</text>
+  <g class="info-icon" transform="translate(836,1721.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="20230925101411.zip (Unzipped Files)" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1FiEU3LxZoG8bn0OtDNBTKLO9uJMVjVco">
+  <rect class="node-rect" x="650" y="1740" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1755.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">20230925101411.zip (U…</text>
+  <g class="info-icon" transform="translate(836,1751.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="20230629103746.zip (Unzipped Files)" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1Pv7NRZaoN810PfUblKRr0-GibWCsdFeM">
+  <rect class="node-rect" x="650" y="1770" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1785.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">20230629103746.zip (U…</text>
+  <g class="info-icon" transform="translate(836,1781.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="20230612102333.zip (Unzipped Files)" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1w94peBIap8mTr_sIyHp2nEqLOg0i8HVu">
+  <rect class="node-rect" x="650" y="1800" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1815.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">20230612102333.zip (U…</text>
+  <g class="info-icon" transform="translate(836,1811.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="20230317134244.zip (Unzipped Files)" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1w8OZ3Nk1zU1-rpkC4BW6w_wXjqQLe6zv">
+  <rect class="node-rect" x="650" y="1830" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1845.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">20230317134244.zip (U…</text>
+  <g class="info-icon" transform="translate(836,1841.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="2022-11-18_1031" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1L7aS0hIcOUrtuv12rtbSTtSc9CkEtIfP">
+  <rect class="node-rect" x="650" y="1860.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1875.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">2022-11-18_1031</text>
+  <g class="info-icon" transform="translate(836,1871.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="’ño“ú221118_‚²Ð‰î»•iˆê——•" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1pFEn5w6o0D7MgFqBrYInLyeBLS8Xrvy_">
+  <rect class="node-rect" x="880" y="1860" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1875.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">’ño“ú221118_‚²Ð‰î»…</text>
+  <g class="info-icon" transform="translate(1066,1871.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="見積書_20210105_1509_ＢＥＮＴＯ　ＬＡＢＯ御中.pdf.zip (Unzipped Files)" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/11O9GWy8xEhwCuwA2iHgw3OBBXQXWTkfC">
+  <rect class="node-rect" x="650" y="1890" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1905.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">見積書_20210105_1509_ＢＥＮ…</text>
+  <g class="info-icon" transform="translate(836,1901.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="inoue@agri-hd.com" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/17XBL59FluN8q90ocx2sYcfls6cW2mcsM">
+  <rect class="node-rect" x="650" y="1920.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="1935.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">inoue@agri-hd.com</text>
+  <g class="info-icon" transform="translate(836,1931.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="Colab Notebooks" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1DDRXQAisyfss490BDusCiyqs9j9osqmM">
+  <rect class="node-rect" x="880" y="1920" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1935.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">Colab Notebooks</text>
+  <g class="info-icon" transform="translate(1066,1931.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="hisatake@agri-hd.com" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1R_Aff5F31nIYrfHjAIlcFCOU71pPgUN-">
+  <rect class="node-rect" x="650" y="2107.5" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="2122.5" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">hisatake@agri-hd.com</text>
+  <g class="info-icon" transform="translate(836,2118.5)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="ラベル屋さん‗弁当ラベルデータ" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/161Tqs0SlFluHVufBjvx2MB_IQViITZXQ">
+  <rect class="node-rect" x="880" y="1950" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1965.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">ラベル屋さん‗弁当ラベルデータ</text>
+  <g class="info-icon" transform="translate(1066,1961.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="AFC入居契約書" data-emails="miyata@agri-hd.com,miyuri@agri-hd.com,takeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;miyuri@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;takeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/10leovg7lW__5lfWhIHz6K9elSnNzN8TJ">
+  <rect class="node-rect" x="880" y="1980" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="1995.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">AFC入居契約書</text>
+  <g class="info-icon" transform="translate(1066,1991.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="BENTO-LABO日本橋オペレーション関連資料" data-emails="miyata@agri-hd.com,takeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;takeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1e4k2fQa6_CAEVBheqAdIJcDfoHONErmh">
+  <rect class="node-rect" x="880" y="2040.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="2055.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">BENTO-LABO日本橋オペレーション関…</text>
+  <g class="info-icon" transform="translate(1066,2051.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="弁当の表示ラベル" data-emails="miyata@agri-hd.com,takeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;takeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1wnJYfeLRbpRAhYC9riq3scWnV8gjRClG">
+  <rect class="node-rect" x="1100" y="2010" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="2025.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">弁当の表示ラベル</text>
+  <g class="info-icon" transform="translate(1286,2021.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="原価計算" data-emails="miyata@agri-hd.com,takeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;takeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1QamHO0uH4mqEsk7sJhpXkvm9y4EGFhoX">
+  <rect class="node-rect" x="1100" y="2040" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="2055.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">原価計算</text>
+  <g class="info-icon" transform="translate(1286,2051.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="2019年4月以降BENTO-LABO" data-emails="miyata@agri-hd.com,takeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;takeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1ZwN_fVGOwPMd3VKl4BHbIhxozD6VdJKy">
+  <rect class="node-rect" x="1100" y="2070" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="2085.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">2019年4月以降BENTO-LABO</text>
+  <g class="info-icon" transform="translate(1286,2081.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="福山さん送別会写真" data-emails="endoagro@gmail.com,yuhei.yokohama@gmail.com,coh.to.invest@gmail.com,miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;endoagro@gmail.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;yuhei.yokohama@gmail.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;coh.to.invest@gmail.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1kF8IQweC7rUtQfGK8Wmp0G5xhkPA2NQE">
+  <rect class="node-rect" x="880" y="2100" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="2115.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">福山さん送別会写真</text>
+  <g class="info-icon" transform="translate(1066,2111.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="BENTO-LABO関連" data-emails="miyata@agri-hd.com,maeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;maeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1sP6837wpXLNd-nSVzBZEonYpsKosStsY">
+  <rect class="node-rect" x="880" y="2265.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="2280.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">BENTO-LABO関連</text>
+  <g class="info-icon" transform="translate(1066,2276.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="べったら市" data-emails="miyata@agri-hd.com,maeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;maeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/18_pX_VTlRgIGtC4irGP6wnlSMNnReog7">
+  <rect class="node-rect" x="1100" y="2130" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="2145.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">べったら市</text>
+  <g class="info-icon" transform="translate(1286,2141.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="江戸川病院" data-emails="miyata@agri-hd.com,maeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;maeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1arCzzQWZHVknbh7G-NWUPR2-RdjxPfV7">
+  <rect class="node-rect" x="1100" y="2160" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="2175.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">江戸川病院</text>
+  <g class="info-icon" transform="translate(1286,2171.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="ハラール" data-emails="miyata@agri-hd.com,maeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;maeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1gf1c8_aryMcKKYgzSBViubS9tqRRGhO_">
+  <rect class="node-rect" x="1100" y="2190" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="2205.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">ハラール</text>
+  <g class="info-icon" transform="translate(1286,2201.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="ボーンブロス" data-emails="miyata@agri-hd.com,maeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;maeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1UinO2lOVh92gqEhu1Jgfj3e58sHz-ULW">
+  <rect class="node-rect" x="1100" y="2220" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="2235.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">ボーンブロス</text>
+  <g class="info-icon" transform="translate(1286,2231.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="長瀬産業" data-emails="miyata@agri-hd.com,maeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;maeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/19bBQDI3bZqWSw3ziKC-8mviFA4Pccgmk">
+  <rect class="node-rect" x="1100" y="2250" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="2265.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">長瀬産業</text>
+  <g class="info-icon" transform="translate(1286,2261.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="KDDI様" data-emails="miyata@agri-hd.com,maeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;maeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1CK1Hk5_6scaH3sdd6jmiZYXMDSF7ZMOo">
+  <rect class="node-rect" x="1100" y="2280" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="2295.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">KDDI様</text>
+  <g class="info-icon" transform="translate(1286,2291.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="キューサイ" data-emails="miyata@agri-hd.com,maeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;maeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1LBb7_UR49ysbQLyvBJLaBq5FOcmpZD2O">
+  <rect class="node-rect" x="1100" y="2310" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="2325.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">キューサイ</text>
+  <g class="info-icon" transform="translate(1286,2321.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="六本木横丁" data-emails="miyata@agri-hd.com,maeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;maeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1gpfeYFtgwYe8EESrlMGHOYzPdBz16iiv">
+  <rect class="node-rect" x="1100" y="2340" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="2355.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">六本木横丁</text>
+  <g class="info-icon" transform="translate(1286,2351.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="丸の内ヘルスケアラウンジ" data-emails="miyata@agri-hd.com,maeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;maeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1lmuglRaXRF68Qv3UGsJ6od-lqGMXc4bn">
+  <rect class="node-rect" x="1100" y="2370" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="2385.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">丸の内ヘルスケアラウンジ</text>
+  <g class="info-icon" transform="translate(1286,2381.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="SIGMAXYZ" data-emails="miyata@agri-hd.com,maeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;maeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1Ptj8pHRvrA62oR9HRnbTEYFijjYgi6vZ">
+  <rect class="node-rect" x="1100" y="2400" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="2415.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">SIGMAXYZ</text>
+  <g class="info-icon" transform="translate(1286,2411.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="crypt20190822-1406.zi_ (Unzipped Files)" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1wbcefebhqQrww5qjJ1CTl_I1coOLbotx">
+  <rect class="node-rect" x="650" y="2430" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="2445.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">crypt20190822-1406.zi…</text>
+  <g class="info-icon" transform="translate(836,2441.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="0318.アグリホールディングス様 労働者派遣基本契約書（雛形） (1).zip (Unzipped Files)" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/17J1435qqefk-5QMQ2G53gBYeS7Sr1AtU">
+  <rect class="node-rect" x="650" y="2460" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="2475.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">0318.アグリホールディングス様 労働者…</text>
+  <g class="info-icon" transform="translate(836,2471.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="人材紹介基本契約書(ドラフト).zip (Unzipped Files)" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1xWUUBc-P3B0e1ty50-4YJ_pf75qybhTm">
+  <rect class="node-rect" x="650" y="2490" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="2505.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">人材紹介基本契約書(ドラフト).zip (…</text>
+  <g class="info-icon" transform="translate(836,2501.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="mfujita@agri-hd.com" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1C7JEA-WbTViebK1ILHZyk86LyQ0S20wg">
+  <rect class="node-rect" x="420" y="2520" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="2535.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">mfujita@agri-hd.com</text>
+  <g class="info-icon" transform="translate(606,2531.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="tagou@agri-hd.com" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1ISL3F47lcz8cJIqgWjx72A2-vporMwM8">
+  <rect class="node-rect" x="420" y="2587.5" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="2602.5" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">tagou@agri-hd.com</text>
+  <g class="info-icon" transform="translate(606,2598.5)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="NOSSI関係" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1a8MdPN6zQ-tga-YdACJzJOmcNeXhmHLB">
+  <rect class="node-rect" x="650" y="2550" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="2565.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">NOSSI関係</text>
+  <g class="info-icon" transform="translate(836,2561.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="田郷引継ぎ分" data-emails="miyata@agri-hd.com,takeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;takeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1PW9uFsjvtxRQEJhd4ethAbQvxIJ7hx1f">
+  <rect class="node-rect" x="650" y="2625.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="2640.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">田郷引継ぎ分</text>
+  <g class="info-icon" transform="translate(836,2636.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="店頭販売" data-emails="miyata@agri-hd.com,takeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;takeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1cf1-V9S-dD2_mN9Lea1QkIRBFT6bMLKm">
+  <rect class="node-rect" x="880" y="2580" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="2595.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">店頭販売</text>
+  <g class="info-icon" transform="translate(1066,2591.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="［法人営業］［その他］" data-emails="miyata@agri-hd.com,takeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;takeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1P7Y2KhVNsHWBDc9L-KXz9g5hY22sw_S2">
+  <rect class="node-rect" x="880" y="2610" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="2625.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">［法人営業］［その他］</text>
+  <g class="info-icon" transform="translate(1066,2621.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="NOSSI関連→共有アイテムの「NOSSI日本橋」をご確認ください" data-emails="miyata@agri-hd.com,takeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;takeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1RU4SynkqrCPot28Z1poYtmusDvhniQzM">
+  <rect class="node-rect" x="880" y="2640" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="2655.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">NOSSI関連→共有アイテムの「NOSSI…</text>
+  <g class="info-icon" transform="translate(1066,2651.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="グイシュ関連→LE GUISHU 輸入販売の田郷引継ぎ分をご確認ください" data-emails="miyata@agri-hd.com,takeda@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;takeda@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1g5DVYV73Xq5Pk9jZfRwNDz2wxm9Ir3SD">
+  <rect class="node-rect" x="880" y="2670" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="2685.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">グイシュ関連→LE GUISHU 輸入販売…</text>
+  <g class="info-icon" transform="translate(1066,2681.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="kondo.mitsumasa@agri-hd.com" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1_XcPJIdBVvWjMLCvlWzRmJP84gQ9-Ns_">
+  <rect class="node-rect" x="420" y="2700" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="2715.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">kondo.mitsumasa@agri-…</text>
+  <g class="info-icon" transform="translate(606,2711.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="iwazaki@agri-hd.com" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1FBIgGpJ6H6TS65s8DRyuJ6EpohtEnTA7">
+  <rect class="node-rect" x="420" y="2797.5" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="2812.5" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">iwazaki@agri-hd.com</text>
+  <g class="info-icon" transform="translate(606,2808.5)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="2018-19年度自治体案件" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1hITWcekDdEJQTtB7SA0FQz5mTKbP-XBL">
+  <rect class="node-rect" x="650" y="2745.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="2760.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">2018-19年度自治体案件</text>
+  <g class="info-icon" transform="translate(836,2756.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="2018気仙沼鹿折加工協同組合" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1yHNE1q4G9vGU4saJZRsOaHmqtxqovwvg">
+  <rect class="node-rect" x="880" y="2730" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="2745.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">2018気仙沼鹿折加工協同組合</text>
+  <g class="info-icon" transform="translate(1066,2741.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="2019東根市" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1GW6zTdAR5LIqHk_wJRSwHbZl5HP5Jdg0">
+  <rect class="node-rect" x="880" y="2760.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="2775.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">2019東根市</text>
+  <g class="info-icon" transform="translate(1066,2771.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="JAPANPOINT画像" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1uaSLen9fRP--edZhXhhD18ni2HFVKGT0">
+  <rect class="node-rect" x="1100" y="2760" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="2775.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">JAPANPOINT画像</text>
+  <g class="info-icon" transform="translate(1286,2771.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="kubo@agri-hd.com" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1Z2l0qC_ivjYmEClG8rVHbbhBOZIckcQP">
+  <rect class="node-rect" x="650" y="2790.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="2805.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">kubo@agri-hd.com</text>
+  <g class="info-icon" transform="translate(836,2801.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="南青山（シフト）" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/18mWUBDC3_UK1NzYmbQ28czvhuh_lDxig">
+  <rect class="node-rect" x="880" y="2790.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="2805.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">南青山（シフト）</text>
+  <g class="info-icon" transform="translate(1066,2801.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="元ファイル" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/12b7GSM4kjc4DNfdbQjih4GWm4AHKq0BX">
+  <rect class="node-rect" x="1100" y="2790" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="2805.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">元ファイル</text>
+  <g class="info-icon" transform="translate(1286,2801.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="Ag&amp;Food Center" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/16upfvx-8bOGf6gntymlOr4BbUXxlm6wB">
+  <rect class="node-rect" x="650" y="2820" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="2835.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">Ag&amp;Food Center</text>
+  <g class="info-icon" transform="translate(836,2831.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="請求書" data-emails="miyata@agri-hd.com,miyuri@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;miyuri@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/10Or5mvjAvCdNxSrT1PyxBJlyu05b-NPj">
+  <rect class="node-rect" x="650" y="2850" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="2865.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">請求書</text>
+  <g class="info-icon" transform="translate(836,2861.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="kasagi@agri-hd.com" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1Ms8narKqsILqaXaUJbsw3nHSK7I5Ci9n">
+  <rect class="node-rect" x="420" y="3037.5" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="3052.5" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">kasagi@agri-hd.com</text>
+  <g class="info-icon" transform="translate(606,3048.5)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="izakaya 2020" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1jnbLDPPTno51y2g4ymsl4qRxRzau185D">
+  <rect class="node-rect" x="650" y="2925.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="2940.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">izakaya 2020</text>
+  <g class="info-icon" transform="translate(836,2936.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="amex1004" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/19Oi4l-7AwWXZI4F9oyREYrEcLqYrJW01">
+  <rect class="node-rect" x="880" y="2880" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="2895.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">amex1004</text>
+  <g class="info-icon" transform="translate(1066,2891.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="8956_2020" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1fKUxuRChRb_yh3weCcgQGUX_lcs033Qr">
+  <rect class="node-rect" x="880" y="2910" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="2925.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">8956_2020</text>
+  <g class="info-icon" transform="translate(1066,2921.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="8858_2020" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1F8HtM5rgyWRcp5ozOcBuidwotU5rXs20">
+  <rect class="node-rect" x="880" y="2940" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="2955.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">8858_2020</text>
+  <g class="info-icon" transform="translate(1066,2951.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="1629_2020" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1CSXQerYl5oyB1HqJxi8Y5RlXc-mxymcC">
+  <rect class="node-rect" x="880" y="2970" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="2985.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">1629_2020</text>
+  <g class="info-icon" transform="translate(1066,2981.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="無題のフォーム (File responses)" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/0B53hwqXYTHv-fld0M2lhY0ZSSkIwUWRwazluRE1YWUVEZjREVTFBVFk4VzdVTF9MbmJ3bVE?resourcekey=0-OlP3JTQtgRXM_JENM8fO1w">
+  <rect class="node-rect" x="650" y="3000.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="3015.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">無題のフォーム (File respons…</text>
+  <g class="info-icon" transform="translate(836,3011.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="営業許可証 (File responses)" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/0B53hwqXYTHv-fnJyeUZoTWRxLVozYzhnRHJWT1BxSi1CcmJUSVk0UVN0eExEM0todkozYm8?resourcekey=0-JPDN7sSt5YGFvzI_Vg2aLQ">
+  <rect class="node-rect" x="880" y="3000" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="3015.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">営業許可証 (File responses)</text>
+  <g class="info-icon" transform="translate(1066,3011.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="NY" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1Jf_dL9qgPv4ScWXSeVEe9nq-Xg1vN9b6">
+  <rect class="node-rect" x="650" y="3060.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="3075.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">NY</text>
+  <g class="info-icon" transform="translate(836,3071.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="new project" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1BblIx6c0Ia5xXcp_ok0kxVPmFQZmJQwJ">
+  <rect class="node-rect" x="880" y="3030.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="3045.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">new project</text>
+  <g class="info-icon" transform="translate(1066,3041.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="kitsune" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1v8AUYNTl-jJtQM4mBQIE4DIofALRp3pE">
+  <rect class="node-rect" x="1100" y="3030" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="3045.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">kitsune</text>
+  <g class="info-icon" transform="translate(1286,3041.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="gouie new york" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1NU8rIrL20Q1ERhmjmvTwbsT0kz28LLLG">
+  <rect class="node-rect" x="880" y="3060.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="3075.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">gouie new york</text>
+  <g class="info-icon" transform="translate(1066,3071.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="MENU" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1Y1aPegWPuGxyvTWdwVFw-9v5ki9-u-IX">
+  <rect class="node-rect" x="1100" y="3060" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="3075.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">MENU</text>
+  <g class="info-icon" transform="translate(1286,3071.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="飲食店売却" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1ApXZKBPGTrYzqwVl9_8MCPian6Jb4tKW">
+  <rect class="node-rect" x="880" y="3090" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="3105.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">飲食店売却</text>
+  <g class="info-icon" transform="translate(1066,3101.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="SG" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/10LJ93bsUricvNuz6ilMG8_OOnmwkQucY">
+  <rect class="node-rect" x="650" y="3120" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="3135.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">SG</text>
+  <g class="info-icon" transform="translate(836,3131.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="invoice izakaya" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/18xDrBwTr_2XBhEra7jV1G7QFJVO-bZNc">
+  <rect class="node-rect" x="650" y="3150" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="3165.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">invoice izakaya</text>
+  <g class="info-icon" transform="translate(836,3161.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="AKARI" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/19YH9CMpa7A1KzsW9nq1pXWeL08R3N0t5">
+  <rect class="node-rect" x="200" y="3180" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="3195.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">AKARI</text>
+  <g class="info-icon" transform="translate(386,3191.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="ヴイクックデリ裏面シール" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1NRnzZOd8BGbHes-PaNIGaQsBGCA4A2gE">
+  <rect class="node-rect" x="200" y="3210" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="3225.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">ヴイクックデリ裏面シール</text>
+  <g class="info-icon" transform="translate(386,3221.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="データドッグ2024" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1L3i9gRCbLJNXo5kuMC3WtsPej52WniVK">
+  <rect class="node-rect" x="200" y="3240.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="3255.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">データドッグ2024</text>
+  <g class="info-icon" transform="translate(386,3251.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="9月データドックメニュー" data-emails="miyata@agri-hd.com,oota@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;oota@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1AbJ4LhT0xDPmc7plLnWM4xVyFGUCByRn">
+  <rect class="node-rect" x="420" y="3240" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="3255.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">9月データドックメニュー</text>
+  <g class="info-icon" transform="translate(606,3251.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="共有元miyata@agri" data-emails="miyata@agri-hd.com" data-users='[{&quot;email&quot;: &quot;miyata@agri-hd.com&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1KiUachvYl6Fe_jNb0iEguSfnqIULwadZ">
+  <rect class="node-rect" x="200" y="3270" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="3285.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">共有元miyata@agri</text>
+  <g class="info-icon" transform="translate(386,3281.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g></g></svg></div>
+  <aside class="side-panel" id="sidePanel">
+    <div class="panel-title">該当フォルダ <b id="resultCount">0</b></div>
+    <div id="panelBody"></div>
+  </aside>
+</div>
+<div id="tooltip"></div>
+<script>
+(function(){
+  const svg = document.getElementById('tree-svg');
+  const allNodes = Array.from(svg.querySelectorAll('.node'));
+  const allConns = Array.from(svg.querySelectorAll('.conn'));
+  const searchInput = document.getElementById('searchInput');
+  const panelBody = document.getElementById('panelBody');
+  const resultCount = document.getElementById('resultCount');
+  const sidePanel = document.getElementById('sidePanel');
+  const mainGrid = document.getElementById('mainGrid');
+  const tooltip = document.getElementById('tooltip');
+  const svgContainer = document.getElementById('svgContainer');
+  
+  allNodes.forEach(n => {
+    const rect = n.querySelector('.node-rect');
+    const text = n.querySelector('.node-text');
+    [rect, text].forEach(el => {
+      if (!el) return;
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.info-icon')) return;
+        const url = n.dataset.url;
+        if (url) window.open(url, '_blank');
+      });
+    });
+    const info = n.querySelector('.info-icon');
+    if (info) {
+      info.addEventListener('mouseenter', (e) => showTip(e, n));
+      info.addEventListener('mousemove', (e) => positionTip(e));
+      info.addEventListener('mouseleave', () => hideTip());
+    }
+  });
+  
+  function showTip(e, node) {
+    const name = node.dataset.name;
+    let users;
+    try { users = JSON.parse(node.dataset.users); } catch(_) { users = []; }
+    let h = `<div class="tt-header">${escapeHtml(name)}</div>`;
+    if (users.length === 0) { h += '<div class="tt-empty">権限情報なし</div>'; }
+    else { users.forEach(u => { h += `<div class="tt-user">${escapeHtml(u.email)} <span class="tt-role">${u.role ? '('+escapeHtml(u.role)+')' : ''}</span></div>`; }); }
+    tooltip.innerHTML = h;
+    tooltip.style.display = 'block';
+    positionTip(e);
+  }
+  function positionTip(e) {
+    const pad = 14;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+    if (x + tw > window.innerWidth) x = e.clientX - tw - pad;
+    if (y + th > window.innerHeight) y = e.clientY - th - pad;
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+  }
+  function hideTip() { tooltip.style.display = 'none'; }
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+  
+  let searchTimer = null;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(doSearch, 150);
+  });
+  
+  function doSearch() {
+    const q = searchInput.value.trim().toLowerCase();
+    if (!q) { clearHighlight(); return; }
+    const matched = [];
+    allNodes.forEach(n => {
+      const emails = (n.dataset.emails || '').toLowerCase();
+      const emailList = emails.split(',').filter(Boolean);
+      let hit = false;
+      for (const e of emailList) { if (e === q || e.includes(q)) { hit = true; break; } }
+      if (hit) { n.classList.add('highlight'); n.classList.remove('dimmed'); matched.push(n); }
+      else { n.classList.remove('highlight'); n.classList.add('dimmed'); }
+    });
+    allConns.forEach(c => c.classList.add('dimmed'));
+    
+    // 結果が0件でもパネルは表示する（マッチ0もメッセージで示す）
+    sidePanel.classList.add('visible');
+    mainGrid.classList.remove('no-panel');
+    
+    if (matched.length === 0) {
+      resultCount.textContent = '0';
+      panelBody.innerHTML = '<div class="no-hit" style="padding:12px; text-align:center; color:var(--text-dim); font-size:11px; font-style:italic">該当するフォルダはこのページ内にありません</div>';
+    } else {
+      resultCount.textContent = matched.length;
+      const ul = document.createElement('ul');
+      ul.id = 'resultList';
+      matched.forEach((n) => {
+        const li = document.createElement('li');
+        const name = n.dataset.name;
+        const lvl = (n.getAttribute('class').match(/node-l(\d)/) || [])[1] || '?';
+        li.innerHTML = `<span class="lvl-badge">L${lvl}</span>${escapeHtml(name)}`;
+        li.addEventListener('click', () => jumpTo(n));
+        ul.appendChild(li);
+      });
+      panelBody.innerHTML = '';
+      panelBody.appendChild(ul);
+    }
+  }
+  
+  function clearHighlight() {
+    allNodes.forEach(n => { n.classList.remove('highlight','dimmed','jump-target'); });
+    allConns.forEach(c => c.classList.remove('dimmed'));
+    // パネルを初期状態（非表示）に戻す
+    sidePanel.classList.remove('visible');
+    mainGrid.classList.add('no-panel');
+    resultCount.textContent = '0';
+    panelBody.innerHTML = '';
+  }
+  
+  // 初期状態: パネル非表示
+  clearHighlight();
+  
+  window.clearSearch = function() {
+    searchInput.value = '';
+    clearHighlight();
+    searchInput.focus();
+  };
+  
+  function jumpTo(node) {
+    const rect = node.querySelector('.node-rect');
+    const x = parseFloat(rect.getAttribute('x'));
+    const y = parseFloat(rect.getAttribute('y'));
+    const w = parseFloat(rect.getAttribute('width'));
+    const containerRect = svgContainer.getBoundingClientRect();
+    svgContainer.scrollTo({ left: x - containerRect.width/2 + w/2, top: y - containerRect.height/2, behavior: 'smooth' });
+    allNodes.forEach(n => n.classList.remove('jump-target'));
+    node.classList.add('jump-target');
+    setTimeout(() => node.classList.remove('jump-target'), 2000);
+  }
+  
+  // URLパラメータから自動検索
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const email = params.get('email');
+    if (email) { searchInput.value = email; doSearch(); }
+  } catch(_) {}
+})();
+</script>
+</body>
+</html>

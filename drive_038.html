@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>【DXHR】営業デモ — Drive Map</title>
+<meta name="viewport" content="width=1400, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; }
+:root {
+  --bg: #1a1a1a; --bg-elev: #222; --bg-elev2: #2a2a2a;
+  --border: #333; --text: #e8e8e8; --text-dim: #888;
+  --accent: #8fd9c7; --highlight: #ffb547; --highlight-border: #ff8c00;
+}
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: 'Noto Sans JP', 'Hiragino Sans', sans-serif; min-height: 100vh; }
+.topbar { position: sticky; top: 0; z-index: 100; background: rgba(22,22,22,0.95); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); padding: 14px 28px; }
+.topbar-inner { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.crumb { display: flex; align-items: baseline; gap: 14px; font-family: 'Space Grotesk', sans-serif; flex-wrap: wrap; }
+.crumb a { color: var(--text-dim); text-decoration: none; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; transition: color 0.2s; }
+.crumb a:hover { color: var(--accent); }
+.crumb .title { font-size: 17px; font-weight: 700; color: var(--text); letter-spacing: 0.01em; }
+.stats { display: flex; gap: 18px; margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim); }
+.stats b { color: var(--accent); font-weight: 600; }
+.search-bar { display: flex; gap: 12px; padding: 12px 28px; background: var(--bg-elev); border-bottom: 1px solid var(--border); align-items: stretch; flex-wrap: wrap; }
+.search-input-wrap { flex: 1; min-width: 280px; position: relative; }
+#searchInput { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 13px; padding: 10px 14px 10px 36px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+#searchInput:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(143,217,199,0.1); }
+.search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); pointer-events: none; }
+.clear-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 0 16px; border-radius: 4px; cursor: pointer; font-size: 12px; font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.05em; transition: all 0.2s; }
+.clear-btn:hover { border-color: var(--accent); color: var(--accent); }
+.main-grid { display: grid; grid-template-columns: 1fr 300px; min-height: calc(100vh - 110px); }
+.main-grid.no-panel { grid-template-columns: 1fr; }
+.svg-container { overflow: auto; padding: 20px; background: radial-gradient(circle at 20% 30%, rgba(107,163,214,0.03) 0%, transparent 50%), radial-gradient(circle at 80% 70%, rgba(143,217,199,0.03) 0%, transparent 50%), var(--bg); }
+#tree-svg { display: block; }
+.node { cursor: pointer; transition: opacity 0.25s; }
+.node:hover .node-rect { filter: brightness(1.1); }
+.node.dimmed { opacity: 0.15; }
+.node.highlight .node-rect { fill: var(--highlight) !important; stroke: var(--highlight-border) !important; stroke-width: 1.5 !important; }
+.node.highlight .node-text { fill: #1a1a1a !important; font-weight: 700 !important; }
+.node.jump-target .node-rect { stroke: var(--accent) !important; stroke-width: 2.5 !important; }
+.conn.dimmed { opacity: 0.08 !important; }
+.side-panel { background: var(--bg-elev); border-left: 1px solid var(--border); padding: 16px 18px; overflow-y: auto; max-height: calc(100vh - 110px); position: sticky; top: 110px; display: none; }
+.side-panel.visible { display: block; }
+.panel-title { font-family: 'Space Grotesk', sans-serif; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: baseline; }
+.panel-title b { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 12px; }
+#resultList { list-style: none; padding: 0; margin: 0; }
+#resultList li { padding: 8px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; line-height: 1.4; margin-bottom: 3px; background: var(--bg-elev2); border-left: 2px solid transparent; transition: all 0.15s; word-break: break-all; }
+#resultList li:hover { background: #333; border-left-color: var(--highlight); }
+#resultList li .lvl-badge { display: inline-block; font-size: 9px; font-family: 'JetBrains Mono', monospace; color: var(--text-dim); background: rgba(255,255,255,0.05); padding: 1px 5px; border-radius: 2px; margin-right: 6px; letter-spacing: 0.05em; }
+#resultList .no-hit { padding: 12px; text-align: center; color: var(--text-dim); font-size: 11px; font-style: italic; }
+#tooltip { position: fixed; background: #0d0d0d; border: 1px solid var(--accent); border-radius: 4px; padding: 10px 14px; max-width: 320px; font-size: 11px; color: var(--text); z-index: 1000; pointer-events: none; box-shadow: 0 8px 32px rgba(0,0,0,0.6); display: none; font-family: 'JetBrains Mono', monospace; line-height: 1.5; }
+#tooltip .tt-header { color: var(--accent); font-weight: 600; margin-bottom: 6px; font-family: 'Noto Sans JP', sans-serif; font-size: 12px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+#tooltip .tt-user { padding: 2px 0; }
+#tooltip .tt-role { color: var(--text-dim); font-size: 10px; }
+#tooltip .tt-empty { color: var(--text-dim); font-style: italic; }
+@media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } .side-panel { position: static; max-height: 400px; border-left: none; border-top: 1px solid var(--border); } }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">← 共有ドライブ一覧</a>
+      <a href="../search.html">🔍 権限検索</a>
+      <span class="title">【DXHR】営業デモ</span>
+    </div>
+    <div class="stats">
+      <span><b>36</b> nodes</span>
+      <span><b>1</b> users</span>
+    </div>
+  </div>
+</div>
+<div class="search-bar">
+  <div class="search-input-wrap">
+    <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input id="searchInput" type="text" list="userDatalist" placeholder="メールアドレスを入力してアクセス権限を検索..." autocomplete="off" spellcheck="false">
+    <datalist id="userDatalist">
+      <option value="sales.ai@dxhr.inc">
+    </datalist>
+  </div>
+  <button class="clear-btn" onclick="clearSearch()">Clear</button>
+</div>
+<div class="main-grid" id="mainGrid">
+  <div class="svg-container" id="svgContainer"><svg id="tree-svg" width="1340" height="782" viewBox="0 0 1340 782" xmlns="http://www.w3.org/2000/svg"><g id="connections"><path class="conn" d="M 190 468.5 L 195.0 468.5 L 195.0 206.0 L 200 206.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 468.5 L 195.0 468.5 L 195.0 641.0 L 200 641.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 468.5 L 195.0 468.5 L 195.0 671.0 L 200 671.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 468.5 L 195.0 468.5 L 195.0 701.0 L 200 701.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 468.5 L 195.0 468.5 L 195.0 731.0 L 200 731.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 206.0 L 410.0 206.0 L 410.0 41.0 L 420 41.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 206.0 L 410.0 206.0 L 410.0 71.0 L 420 71.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 206.0 L 410.0 206.0 L 410.0 101.0 L 420 101.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 206.0 L 410.0 206.0 L 410.0 371.0 L 420 371.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 371.0 L 635.0 371.0 L 635.0 131.0 L 650 131.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 371.0 L 635.0 371.0 L 635.0 161.0 L 650 161.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 371.0 L 635.0 371.0 L 635.0 296.0 L 650 296.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 371.0 L 635.0 371.0 L 635.0 506.0 L 650 506.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 620 371.0 L 635.0 371.0 L 635.0 611.0 L 650 611.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 296.0 L 865.0 296.0 L 865.0 206.0 L 880 206.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 296.0 L 865.0 296.0 L 865.0 266.0 L 880 266.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 296.0 L 865.0 296.0 L 865.0 326.0 L 880 326.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 296.0 L 865.0 296.0 L 865.0 386.0 L 880 386.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 206.0 L 1090.0 206.0 L 1090.0 191.0 L 1100 191.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 206.0 L 1090.0 206.0 L 1090.0 221.0 L 1100 221.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 266.0 L 1090.0 266.0 L 1090.0 251.0 L 1100 251.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 266.0 L 1090.0 266.0 L 1090.0 281.0 L 1100 281.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 326.0 L 1090.0 326.0 L 1090.0 311.0 L 1100 311.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 326.0 L 1090.0 326.0 L 1090.0 341.0 L 1100 341.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 386.0 L 1090.0 386.0 L 1090.0 371.0 L 1100 371.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 386.0 L 1090.0 386.0 L 1090.0 401.0 L 1100 401.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 506.0 L 865.0 506.0 L 865.0 446.0 L 880 446.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 506.0 L 865.0 506.0 L 865.0 506.0 L 880 506.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 850 506.0 L 865.0 506.0 L 865.0 566.0 L 880 566.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 446.0 L 1090.0 446.0 L 1090.0 431.0 L 1100 431.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 446.0 L 1090.0 446.0 L 1090.0 461.0 L 1100 461.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 506.0 L 1090.0 506.0 L 1090.0 491.0 L 1100 491.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 506.0 L 1090.0 506.0 L 1090.0 521.0 L 1100 521.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 566.0 L 1090.0 566.0 L 1090.0 551.0 L 1100 551.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 1080 566.0 L 1090.0 566.0 L 1090.0 581.0 L 1100 581.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/></g><g id="nodes"><g class="node node-l1" data-name="【DXHR】営業デモ" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/0AEHuajx2n-qUUk9PVA">
+  <rect class="node-rect" x="20" y="457.5" width="170" height="22" rx="2" ry="2" fill="#8fd9c7" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="28" y="472.5" fill="#0a0a0a" font-size="11" font-weight="bold" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">【DXHR】営業デモ</text>
+  <g class="info-icon" transform="translate(176,468.5)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="02_DXHRの商材" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1Y_qXgB_odmBeV1OpPBmdqYM2wpxuiDed">
+  <rect class="node-rect" x="200" y="195.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="210.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">02_DXHRの商材</text>
+  <g class="info-icon" transform="translate(386,206.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="【DXHR】AIエージェントデモ" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1fgJ4dg9DZTog9KF6HdOIyshUT0mwd6Bw">
+  <rect class="node-rect" x="420" y="30" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="45.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">【DXHR】AIエージェントデモ</text>
+  <g class="info-icon" transform="translate(606,41.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="03_AIエージェント" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1cBeATAJqGTLj_0biG7CbsG9ZIjqLLhff">
+  <rect class="node-rect" x="420" y="60" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="75.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">03_AIエージェント</text>
+  <g class="info-icon" transform="translate(606,71.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="02_コンサル" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1nnAzcM2wSR-WbtCRoqfRdpPsKPuj6d90">
+  <rect class="node-rect" x="420" y="90" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="105.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">02_コンサル</text>
+  <g class="info-icon" transform="translate(606,101.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="01_研修" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1LjNDXmCVkYa3AEPlP-l98Nr8-P2GYuGV">
+  <rect class="node-rect" x="420" y="360.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="375.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">01_研修</text>
+  <g class="info-icon" transform="translate(606,371.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="04_PX研修" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1ulhT0CMv6pIKO6GmIh-S4Dhzuk6KhbHF">
+  <rect class="node-rect" x="650" y="120" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="135.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">04_PX研修</text>
+  <g class="info-icon" transform="translate(836,131.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="00_汎用パッケージ型研修（インタラクティブ）" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1MagPGW_lAWd1Uq2MT_zdmBTIH1HpKmYW">
+  <rect class="node-rect" x="650" y="150" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="165.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">00_汎用パッケージ型研修（インタラクティ…</text>
+  <g class="info-icon" transform="translate(836,161.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="02_業種別パッケージ型研修" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1rr6iXCAVTzORwKpGyxrloNiF1fsn3YDG">
+  <rect class="node-rect" x="650" y="285.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="300.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">02_業種別パッケージ型研修</text>
+  <g class="info-icon" transform="translate(836,296.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="EC" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1863-c1OUWbC9G_s22-ZtyAd2K5lVzIP1">
+  <rect class="node-rect" x="880" y="195.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="210.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">EC</text>
+  <g class="info-icon" transform="translate(1066,206.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="02_eラーニング" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1yI8abjOQtTQ6ofCzBvKcqbD0VGBwNNoe">
+  <rect class="node-rect" x="1100" y="180" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="195.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">02_eラーニング</text>
+  <g class="info-icon" transform="translate(1286,191.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="01_インタラクティブ研修_素材なし" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1ZDtFlL1fNruuJeKjy1IEPKoV0xP5xsHH">
+  <rect class="node-rect" x="1100" y="210" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="225.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">01_インタラクティブ研修_素材なし</text>
+  <g class="info-icon" transform="translate(1286,221.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="パチンコ" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1lro3W-I5Z-Y7CR6PDHPj45h22bIHUzET">
+  <rect class="node-rect" x="880" y="255.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="270.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">パチンコ</text>
+  <g class="info-icon" transform="translate(1066,266.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="01_インタラクティブ研修_素材なし" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1gLQtSfKnHdSZN6hHsmDwbUb0SIePivv3">
+  <rect class="node-rect" x="1100" y="240" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="255.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">01_インタラクティブ研修_素材なし</text>
+  <g class="info-icon" transform="translate(1286,251.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="02_eラーニング研修" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1HL738LARpU1zzrj5PTuLCCPfgS9YJE9E">
+  <rect class="node-rect" x="1100" y="270" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="285.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">02_eラーニング研修</text>
+  <g class="info-icon" transform="translate(1286,281.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="飲食" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1OJvRkH0xn31plEW25R189AAZdN4gdHly">
+  <rect class="node-rect" x="880" y="315.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="330.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">飲食</text>
+  <g class="info-icon" transform="translate(1066,326.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="02_eラーニング研修" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1ekIJGwFBjX-GDbQwvxYu8zZ6jIZj6HYE">
+  <rect class="node-rect" x="1100" y="300" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="315.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">02_eラーニング研修</text>
+  <g class="info-icon" transform="translate(1286,311.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="01_インタラクティブ研修_素材なし" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1fG_-Q5lskULZDa-gcSqG43v9LFGZsRc3">
+  <rect class="node-rect" x="1100" y="330" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="345.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">01_インタラクティブ研修_素材なし</text>
+  <g class="info-icon" transform="translate(1286,341.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="業務改善コンサルティング" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1CQx3COi7n6KaJkJjJEaAPA1or3qZW1Hz">
+  <rect class="node-rect" x="880" y="375.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="390.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">業務改善コンサルティング</text>
+  <g class="info-icon" transform="translate(1066,386.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="02_eラーニング研修_素材なし" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/12HFjMQIZsC1MDHZaVsfoe_cVC_bN_OEf">
+  <rect class="node-rect" x="1100" y="360" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="375.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">02_eラーニング研修_素材なし</text>
+  <g class="info-icon" transform="translate(1286,371.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="01_インタラクティブ研修" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1Jh9qemVvZgA4jAgm3-VloLILf9uT0c5j">
+  <rect class="node-rect" x="1100" y="390" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="405.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">01_インタラクティブ研修</text>
+  <g class="info-icon" transform="translate(1286,401.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="03_職種別パッケージ型研修" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1Rcfma4gGcW8n2JwisvouxVihdevF7LeT">
+  <rect class="node-rect" x="650" y="495.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="510.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">03_職種別パッケージ型研修</text>
+  <g class="info-icon" transform="translate(836,506.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="エンジニア" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1Z1-iCcNCpO0BEQmf8bUsLcML-0HjntUW">
+  <rect class="node-rect" x="880" y="435.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="450.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">エンジニア</text>
+  <g class="info-icon" transform="translate(1066,446.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="02_eラーニング研修_素材なし" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1qE4L4wR5lmsSEpRlZ5TeY4J0bXtxj9OY">
+  <rect class="node-rect" x="1100" y="420" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="435.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">02_eラーニング研修_素材なし</text>
+  <g class="info-icon" transform="translate(1286,431.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="01_インタラクティブ研修" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1URDKdy5bCnY5acTvkpIs156Y-OUeWTpG">
+  <rect class="node-rect" x="1100" y="450" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="465.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">01_インタラクティブ研修</text>
+  <g class="info-icon" transform="translate(1286,461.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="グラフィックデザイナー" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/11xhuFjSsyrhseS8ETevs2STH01Uo4YNj">
+  <rect class="node-rect" x="880" y="495.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="510.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">グラフィックデザイナー</text>
+  <g class="info-icon" transform="translate(1066,506.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="02_eラーニング研修_素材なし" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1DSkOdZP65CbGFwpUIEAekO_z-HuGXsl0">
+  <rect class="node-rect" x="1100" y="480" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="495.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">02_eラーニング研修_素材なし</text>
+  <g class="info-icon" transform="translate(1286,491.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="01_インタラクティブ研修" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/134v4n8EVgdecejtgoM6qpXJ4S6pOgQv8">
+  <rect class="node-rect" x="1100" y="510" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="525.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">01_インタラクティブ研修</text>
+  <g class="info-icon" transform="translate(1286,521.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l5" data-name="営業" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1y0YNRfGi-tXbBoX8xlWgqUHTiGhExj8V">
+  <rect class="node-rect" x="880" y="555.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="888" y="570.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">営業</text>
+  <g class="info-icon" transform="translate(1066,566.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="02_eラーニング研修" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/19YE-nGZUSu6bK3aUBbIWV6kmVR5m9SEC">
+  <rect class="node-rect" x="1100" y="540" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="555.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">02_eラーニング研修</text>
+  <g class="info-icon" transform="translate(1286,551.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l6" data-name="01_インタラクティブ研修" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1SL0Ks8rwbBG7-INsXMAvqGknOezaS0CL">
+  <rect class="node-rect" x="1100" y="570" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="1108" y="585.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">01_インタラクティブ研修</text>
+  <g class="info-icon" transform="translate(1286,581.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l4" data-name="01_業種別カスタマイズ研修" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1-G-qbWdrXV6xoB_boarKhmIUTntQNC7t">
+  <rect class="node-rect" x="650" y="600" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="658" y="615.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">01_業種別カスタマイズ研修</text>
+  <g class="info-icon" transform="translate(836,611.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="01_【DXHR】営業デモ資料" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/1Gugz9wijf177ZmSw8T2_8jF6BMnJkoaz">
+  <rect class="node-rect" x="200" y="630" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="645.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">01_【DXHR】営業デモ資料</text>
+  <g class="info-icon" transform="translate(386,641.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="05_KAGEMUSHA" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/103GL6ZMclS5Z6OSl4RNy6Y5wGa-PEsyL">
+  <rect class="node-rect" x="200" y="660" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="675.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">05_KAGEMUSHA</text>
+  <g class="info-icon" transform="translate(386,671.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="04_Xtem" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/10HMXkzkTN70BvLekmxxEztxxF1OOyVld">
+  <rect class="node-rect" x="200" y="690" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="705.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">04_Xtem</text>
+  <g class="info-icon" transform="translate(386,701.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="03_AROUSAL Tech" data-emails="sales.ai@dxhr.inc" data-users='[{&quot;email&quot;: &quot;sales.ai@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}]' data-url="https://drive.google.com/drive/folders/11Z3nCd-wGXZFyiNKZ_ZEFRnxPHhzrAcf">
+  <rect class="node-rect" x="200" y="720" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="735.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">03_AROUSAL Tech</text>
+  <g class="info-icon" transform="translate(386,731.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g></g></svg></div>
+  <aside class="side-panel" id="sidePanel">
+    <div class="panel-title">該当フォルダ <b id="resultCount">0</b></div>
+    <div id="panelBody"></div>
+  </aside>
+</div>
+<div id="tooltip"></div>
+<script>
+(function(){
+  const svg = document.getElementById('tree-svg');
+  const allNodes = Array.from(svg.querySelectorAll('.node'));
+  const allConns = Array.from(svg.querySelectorAll('.conn'));
+  const searchInput = document.getElementById('searchInput');
+  const panelBody = document.getElementById('panelBody');
+  const resultCount = document.getElementById('resultCount');
+  const sidePanel = document.getElementById('sidePanel');
+  const mainGrid = document.getElementById('mainGrid');
+  const tooltip = document.getElementById('tooltip');
+  const svgContainer = document.getElementById('svgContainer');
+  
+  allNodes.forEach(n => {
+    const rect = n.querySelector('.node-rect');
+    const text = n.querySelector('.node-text');
+    [rect, text].forEach(el => {
+      if (!el) return;
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.info-icon')) return;
+        const url = n.dataset.url;
+        if (url) window.open(url, '_blank');
+      });
+    });
+    const info = n.querySelector('.info-icon');
+    if (info) {
+      info.addEventListener('mouseenter', (e) => showTip(e, n));
+      info.addEventListener('mousemove', (e) => positionTip(e));
+      info.addEventListener('mouseleave', () => hideTip());
+    }
+  });
+  
+  function showTip(e, node) {
+    const name = node.dataset.name;
+    let users;
+    try { users = JSON.parse(node.dataset.users); } catch(_) { users = []; }
+    let h = `<div class="tt-header">${escapeHtml(name)}</div>`;
+    if (users.length === 0) { h += '<div class="tt-empty">権限情報なし</div>'; }
+    else { users.forEach(u => { h += `<div class="tt-user">${escapeHtml(u.email)} <span class="tt-role">${u.role ? '('+escapeHtml(u.role)+')' : ''}</span></div>`; }); }
+    tooltip.innerHTML = h;
+    tooltip.style.display = 'block';
+    positionTip(e);
+  }
+  function positionTip(e) {
+    const pad = 14;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+    if (x + tw > window.innerWidth) x = e.clientX - tw - pad;
+    if (y + th > window.innerHeight) y = e.clientY - th - pad;
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+  }
+  function hideTip() { tooltip.style.display = 'none'; }
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+  
+  let searchTimer = null;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(doSearch, 150);
+  });
+  
+  function doSearch() {
+    const q = searchInput.value.trim().toLowerCase();
+    if (!q) { clearHighlight(); return; }
+    const matched = [];
+    allNodes.forEach(n => {
+      const emails = (n.dataset.emails || '').toLowerCase();
+      const emailList = emails.split(',').filter(Boolean);
+      let hit = false;
+      for (const e of emailList) { if (e === q || e.includes(q)) { hit = true; break; } }
+      if (hit) { n.classList.add('highlight'); n.classList.remove('dimmed'); matched.push(n); }
+      else { n.classList.remove('highlight'); n.classList.add('dimmed'); }
+    });
+    allConns.forEach(c => c.classList.add('dimmed'));
+    
+    // 結果が0件でもパネルは表示する（マッチ0もメッセージで示す）
+    sidePanel.classList.add('visible');
+    mainGrid.classList.remove('no-panel');
+    
+    if (matched.length === 0) {
+      resultCount.textContent = '0';
+      panelBody.innerHTML = '<div class="no-hit" style="padding:12px; text-align:center; color:var(--text-dim); font-size:11px; font-style:italic">該当するフォルダはこのページ内にありません</div>';
+    } else {
+      resultCount.textContent = matched.length;
+      const ul = document.createElement('ul');
+      ul.id = 'resultList';
+      matched.forEach((n) => {
+        const li = document.createElement('li');
+        const name = n.dataset.name;
+        const lvl = (n.getAttribute('class').match(/node-l(\d)/) || [])[1] || '?';
+        li.innerHTML = `<span class="lvl-badge">L${lvl}</span>${escapeHtml(name)}`;
+        li.addEventListener('click', () => jumpTo(n));
+        ul.appendChild(li);
+      });
+      panelBody.innerHTML = '';
+      panelBody.appendChild(ul);
+    }
+  }
+  
+  function clearHighlight() {
+    allNodes.forEach(n => { n.classList.remove('highlight','dimmed','jump-target'); });
+    allConns.forEach(c => c.classList.remove('dimmed'));
+    // パネルを初期状態（非表示）に戻す
+    sidePanel.classList.remove('visible');
+    mainGrid.classList.add('no-panel');
+    resultCount.textContent = '0';
+    panelBody.innerHTML = '';
+  }
+  
+  // 初期状態: パネル非表示
+  clearHighlight();
+  
+  window.clearSearch = function() {
+    searchInput.value = '';
+    clearHighlight();
+    searchInput.focus();
+  };
+  
+  function jumpTo(node) {
+    const rect = node.querySelector('.node-rect');
+    const x = parseFloat(rect.getAttribute('x'));
+    const y = parseFloat(rect.getAttribute('y'));
+    const w = parseFloat(rect.getAttribute('width'));
+    const containerRect = svgContainer.getBoundingClientRect();
+    svgContainer.scrollTo({ left: x - containerRect.width/2 + w/2, top: y - containerRect.height/2, behavior: 'smooth' });
+    allNodes.forEach(n => n.classList.remove('jump-target'));
+    node.classList.add('jump-target');
+    setTimeout(() => node.classList.remove('jump-target'), 2000);
+  }
+  
+  // URLパラメータから自動検索
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const email = params.get('email');
+    if (email) { searchInput.value = email; doSearch(); }
+  } catch(_) {}
+})();
+</script>
+</body>
+</html>

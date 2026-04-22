@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>【DXHR定額制プラン】 — Drive Map</title>
+<meta name="viewport" content="width=1400, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; }
+:root {
+  --bg: #1a1a1a; --bg-elev: #222; --bg-elev2: #2a2a2a;
+  --border: #333; --text: #e8e8e8; --text-dim: #888;
+  --accent: #8fd9c7; --highlight: #ffb547; --highlight-border: #ff8c00;
+}
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: 'Noto Sans JP', 'Hiragino Sans', sans-serif; min-height: 100vh; }
+.topbar { position: sticky; top: 0; z-index: 100; background: rgba(22,22,22,0.95); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); padding: 14px 28px; }
+.topbar-inner { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.crumb { display: flex; align-items: baseline; gap: 14px; font-family: 'Space Grotesk', sans-serif; flex-wrap: wrap; }
+.crumb a { color: var(--text-dim); text-decoration: none; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; transition: color 0.2s; }
+.crumb a:hover { color: var(--accent); }
+.crumb .title { font-size: 17px; font-weight: 700; color: var(--text); letter-spacing: 0.01em; }
+.stats { display: flex; gap: 18px; margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim); }
+.stats b { color: var(--accent); font-weight: 600; }
+.search-bar { display: flex; gap: 12px; padding: 12px 28px; background: var(--bg-elev); border-bottom: 1px solid var(--border); align-items: stretch; flex-wrap: wrap; }
+.search-input-wrap { flex: 1; min-width: 280px; position: relative; }
+#searchInput { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 13px; padding: 10px 14px 10px 36px; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+#searchInput:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(143,217,199,0.1); }
+.search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-dim); pointer-events: none; }
+.clear-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 0 16px; border-radius: 4px; cursor: pointer; font-size: 12px; font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.05em; transition: all 0.2s; }
+.clear-btn:hover { border-color: var(--accent); color: var(--accent); }
+.main-grid { display: grid; grid-template-columns: 1fr 300px; min-height: calc(100vh - 110px); }
+.main-grid.no-panel { grid-template-columns: 1fr; }
+.svg-container { overflow: auto; padding: 20px; background: radial-gradient(circle at 20% 30%, rgba(107,163,214,0.03) 0%, transparent 50%), radial-gradient(circle at 80% 70%, rgba(143,217,199,0.03) 0%, transparent 50%), var(--bg); }
+#tree-svg { display: block; }
+.node { cursor: pointer; transition: opacity 0.25s; }
+.node:hover .node-rect { filter: brightness(1.1); }
+.node.dimmed { opacity: 0.15; }
+.node.highlight .node-rect { fill: var(--highlight) !important; stroke: var(--highlight-border) !important; stroke-width: 1.5 !important; }
+.node.highlight .node-text { fill: #1a1a1a !important; font-weight: 700 !important; }
+.node.jump-target .node-rect { stroke: var(--accent) !important; stroke-width: 2.5 !important; }
+.conn.dimmed { opacity: 0.08 !important; }
+.side-panel { background: var(--bg-elev); border-left: 1px solid var(--border); padding: 16px 18px; overflow-y: auto; max-height: calc(100vh - 110px); position: sticky; top: 110px; display: none; }
+.side-panel.visible { display: block; }
+.panel-title { font-family: 'Space Grotesk', sans-serif; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: baseline; }
+.panel-title b { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 12px; }
+#resultList { list-style: none; padding: 0; margin: 0; }
+#resultList li { padding: 8px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; line-height: 1.4; margin-bottom: 3px; background: var(--bg-elev2); border-left: 2px solid transparent; transition: all 0.15s; word-break: break-all; }
+#resultList li:hover { background: #333; border-left-color: var(--highlight); }
+#resultList li .lvl-badge { display: inline-block; font-size: 9px; font-family: 'JetBrains Mono', monospace; color: var(--text-dim); background: rgba(255,255,255,0.05); padding: 1px 5px; border-radius: 2px; margin-right: 6px; letter-spacing: 0.05em; }
+#resultList .no-hit { padding: 12px; text-align: center; color: var(--text-dim); font-size: 11px; font-style: italic; }
+#tooltip { position: fixed; background: #0d0d0d; border: 1px solid var(--accent); border-radius: 4px; padding: 10px 14px; max-width: 320px; font-size: 11px; color: var(--text); z-index: 1000; pointer-events: none; box-shadow: 0 8px 32px rgba(0,0,0,0.6); display: none; font-family: 'JetBrains Mono', monospace; line-height: 1.5; }
+#tooltip .tt-header { color: var(--accent); font-weight: 600; margin-bottom: 6px; font-family: 'Noto Sans JP', sans-serif; font-size: 12px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+#tooltip .tt-user { padding: 2px 0; }
+#tooltip .tt-role { color: var(--text-dim); font-size: 10px; }
+#tooltip .tt-empty { color: var(--text-dim); font-style: italic; }
+@media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } .side-panel { position: static; max-height: 400px; border-left: none; border-top: 1px solid var(--border); } }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="crumb">
+      <a href="../index.html">← 共有ドライブ一覧</a>
+      <a href="../search.html">🔍 権限検索</a>
+      <span class="title">【DXHR定額制プラン】</span>
+    </div>
+    <div class="stats">
+      <span><b>44</b> nodes</span>
+      <span><b>2</b> users</span>
+    </div>
+  </div>
+</div>
+<div class="search-bar">
+  <div class="search-input-wrap">
+    <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input id="searchInput" type="text" list="userDatalist" placeholder="メールアドレスを入力してアクセス権限を検索..." autocomplete="off" spellcheck="false">
+    <datalist id="userDatalist">
+      <option value="gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com"><option value="tomoe@dxhr.inc">
+    </datalist>
+  </div>
+  <button class="clear-btn" onclick="clearSearch()">Clear</button>
+</div>
+<div class="main-grid" id="mainGrid">
+  <div class="svg-container" id="svgContainer"><svg id="tree-svg" width="660" height="1262" viewBox="0 0 660 1262" xmlns="http://www.w3.org/2000/svg"><g id="connections"><path class="conn" d="M 190 626.0 L 195.0 626.0 L 195.0 221.0 L 200 221.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 626.0 L 195.0 626.0 L 195.0 626.0 L 200 626.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 190 626.0 L 195.0 626.0 L 195.0 1031.0 L 200 1031.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 221.0 L 410.0 221.0 L 410.0 41.0 L 420 41.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 221.0 L 410.0 221.0 L 410.0 71.0 L 420 71.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 221.0 L 410.0 221.0 L 410.0 101.0 L 420 101.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 221.0 L 410.0 221.0 L 410.0 131.0 L 420 131.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 221.0 L 410.0 221.0 L 410.0 161.0 L 420 161.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 221.0 L 410.0 221.0 L 410.0 191.0 L 420 191.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 221.0 L 410.0 221.0 L 410.0 221.0 L 420 221.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 221.0 L 410.0 221.0 L 410.0 251.0 L 420 251.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 221.0 L 410.0 221.0 L 410.0 281.0 L 420 281.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 221.0 L 410.0 221.0 L 410.0 311.0 L 420 311.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 221.0 L 410.0 221.0 L 410.0 341.0 L 420 341.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 221.0 L 410.0 221.0 L 410.0 371.0 L 420 371.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 221.0 L 410.0 221.0 L 410.0 401.0 L 420 401.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 626.0 L 410.0 626.0 L 410.0 431.0 L 420 431.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 626.0 L 410.0 626.0 L 410.0 461.0 L 420 461.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 626.0 L 410.0 626.0 L 410.0 491.0 L 420 491.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 626.0 L 410.0 626.0 L 410.0 521.0 L 420 521.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 626.0 L 410.0 626.0 L 410.0 551.0 L 420 551.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 626.0 L 410.0 626.0 L 410.0 581.0 L 420 581.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 626.0 L 410.0 626.0 L 410.0 611.0 L 420 611.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 626.0 L 410.0 626.0 L 410.0 641.0 L 420 641.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 626.0 L 410.0 626.0 L 410.0 671.0 L 420 671.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 626.0 L 410.0 626.0 L 410.0 701.0 L 420 701.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 626.0 L 410.0 626.0 L 410.0 731.0 L 420 731.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 626.0 L 410.0 626.0 L 410.0 761.0 L 420 761.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 626.0 L 410.0 626.0 L 410.0 791.0 L 420 791.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 626.0 L 410.0 626.0 L 410.0 821.0 L 420 821.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1031.0 L 410.0 1031.0 L 410.0 851.0 L 420 851.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1031.0 L 410.0 1031.0 L 410.0 881.0 L 420 881.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1031.0 L 410.0 1031.0 L 410.0 911.0 L 420 911.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1031.0 L 410.0 1031.0 L 410.0 941.0 L 420 941.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1031.0 L 410.0 1031.0 L 410.0 971.0 L 420 971.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1031.0 L 410.0 1031.0 L 410.0 1001.0 L 420 1001.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1031.0 L 410.0 1031.0 L 410.0 1031.0 L 420 1031.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1031.0 L 410.0 1031.0 L 410.0 1061.0 L 420 1061.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1031.0 L 410.0 1031.0 L 410.0 1091.0 L 420 1091.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1031.0 L 410.0 1031.0 L 410.0 1121.0 L 420 1121.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1031.0 L 410.0 1031.0 L 410.0 1151.0 L 420 1151.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1031.0 L 410.0 1031.0 L 410.0 1181.0 L 420 1181.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/><path class="conn" d="M 400 1031.0 L 410.0 1031.0 L 410.0 1211.0 L 420 1211.0" stroke="#6ba3d6" stroke-width="1.2" fill="none" opacity="0.6"/></g><g id="nodes"><g class="node node-l1" data-name="【DXHR定額制プラン】" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/0AMleQKwt4Y5FUk9PVA">
+  <rect class="node-rect" x="20" y="615.0" width="170" height="22" rx="2" ry="2" fill="#8fd9c7" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="28" y="630.0" fill="#0a0a0a" font-size="11" font-weight="bold" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">【DXHR定額制プラン】</text>
+  <g class="info-icon" transform="translate(176,626.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="① ベーシック  AI基礎・入門" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1Lwt3xEthZabU6eGwJzsv4G8EsupbM_t8">
+  <rect class="node-rect" x="200" y="210.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="225.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">① ベーシック  AI基礎・入門</text>
+  <g class="info-icon" transform="translate(386,221.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="（動画未格納）不動産会社（仲介）のため生成AI研修①" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1xxuPUHhEonSODyEk7pv2HuRGFEXoYGrL">
+  <rect class="node-rect" x="420" y="30" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="45.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">（動画未格納）不動産会社（仲介）のため生成…</text>
+  <g class="info-icon" transform="translate(606,41.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="生成AIを活用した動画制作・SNS運用研修" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1T7Tzan9szpzs0TNiid5yW6F7UVF8uSX6">
+  <rect class="node-rect" x="420" y="60" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="75.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">生成AIを活用した動画制作・SNS運用研修</text>
+  <g class="info-icon" transform="translate(606,71.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="整体・マッサージ店の業務効率化を実現する生成AI研修①" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1Ghs4inPut6d_JtbRi5DdMdbXSQoNm1_k">
+  <rect class="node-rect" x="420" y="90" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="105.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">整体・マッサージ店の業務効率化を実現する生…</text>
+  <g class="info-icon" transform="translate(606,101.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="店舗で働く人のための生成AI研修①" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1IyR6npB-2xZsDJBhafV2zjBUR4Uqwsva">
+  <rect class="node-rect" x="420" y="120" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="135.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">店舗で働く人のための生成AI研修①</text>
+  <g class="info-icon" transform="translate(606,131.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="学習塾での業務効率化を実現する生成AI研修①" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1qee9eFTjzwaO4CKLADcMznEXSghz6mz_">
+  <rect class="node-rect" x="420" y="150" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="165.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">学習塾での業務効率化を実現する生成AI研修①</text>
+  <g class="info-icon" transform="translate(606,161.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="パチンコ業界で働く人のための生成AI研修①" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1hvpVdwN1d1mLhQ-SIkxKGIIdE2GEfDXJ">
+  <rect class="node-rect" x="420" y="180" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="195.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">パチンコ業界で働く人のための生成AI研修①</text>
+  <g class="info-icon" transform="translate(606,191.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="EC業界で働く人のための生成AI研修①" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/13CHWMzdOGDVONLhKOdRRguPWB_Mg93op">
+  <rect class="node-rect" x="420" y="210" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="225.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">EC業界で働く人のための生成AI研修①</text>
+  <g class="info-icon" transform="translate(606,221.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="飲食・サービス業界で働く人のためのDX/AI研修①" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/14W7WK4g5PPvuoeJhLXfG5cKs7rCXeD6s">
+  <rect class="node-rect" x="420" y="240" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="255.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">飲食・サービス業界で働く人のためのDX/A…</text>
+  <g class="info-icon" transform="translate(606,251.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="自動車教習所での業務効率化を実現する生成AI,DX研修①" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1soMCiLuqsawJ5EVIXBdiXH6ii9Cyow1W">
+  <rect class="node-rect" x="420" y="270" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="285.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">自動車教習所での業務効率化を実現する生成A…</text>
+  <g class="info-icon" transform="translate(606,281.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="コーポレートスタッフのための生成AI活用研修①" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/18ycevfF2eN9DeZ0Ng-1kkRiuRB2wd3jX">
+  <rect class="node-rect" x="420" y="300" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="315.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">コーポレートスタッフのための生成AI活用研…</text>
+  <g class="info-icon" transform="translate(606,311.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="営業現場で使える生成AI研修①" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1meBcjg01Hzm8qnmgKlPwX7dLcdjrjNaI">
+  <rect class="node-rect" x="420" y="330" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="345.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">営業現場で使える生成AI研修①</text>
+  <g class="info-icon" transform="translate(606,341.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="生成AI×マーケティング研修" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/12UYqvzjvLfzKFRgZAGMyahsH6h0CyCGT">
+  <rect class="node-rect" x="420" y="360" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="375.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">生成AI×マーケティング研修</text>
+  <g class="info-icon" transform="translate(606,371.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="プロンプトエンジニアリング" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/17C3pQDUqq01hXNKwDYM-mr764D-nk7y8">
+  <rect class="node-rect" x="420" y="390" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="405.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">プロンプトエンジニアリング</text>
+  <g class="info-icon" transform="translate(606,401.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="③ アドバンス  専門・発展" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1BH2XCvSy7zc_YlcgQy1KAgydzCdivd4v">
+  <rect class="node-rect" x="200" y="615.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="630.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">③ アドバンス  専門・発展</text>
+  <g class="info-icon" transform="translate(386,626.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="不動産会社（仲介）のため生成AI研修③" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1POsrKgH2X57ku9WGPPpGj94HW5kWmzUM">
+  <rect class="node-rect" x="420" y="420" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="435.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">不動産会社（仲介）のため生成AI研修③</text>
+  <g class="info-icon" transform="translate(606,431.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="整体・マッサージ店の業務効率化を実現する生成AI研修③" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1hvmLdbuLbX9f_8N4Q3AVkPvHw_sYH8Wd">
+  <rect class="node-rect" x="420" y="450" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="465.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">整体・マッサージ店の業務効率化を実現する生…</text>
+  <g class="info-icon" transform="translate(606,461.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="店舗で働く人のための生成AI研修③" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1_2M-hx0Uqcw-dNvfug4UMwwNcQo4EY-f">
+  <rect class="node-rect" x="420" y="480" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="495.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">店舗で働く人のための生成AI研修③</text>
+  <g class="info-icon" transform="translate(606,491.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="学習塾での業務効率化を実現する生成AI研修③" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1CxsbH2dRIoNvyuTfspU8ArxQk5stcL89">
+  <rect class="node-rect" x="420" y="510" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="525.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">学習塾での業務効率化を実現する生成AI研修③</text>
+  <g class="info-icon" transform="translate(606,521.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="パチンコ業界で働く人のための生成AI研修③" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/12Qqs03RL9mzRvwH9BEsBmiYj87rk2mlb">
+  <rect class="node-rect" x="420" y="540" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="555.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">パチンコ業界で働く人のための生成AI研修③</text>
+  <g class="info-icon" transform="translate(606,551.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="EC業界で働く人のための生成AI研修③" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1hQ2NHM12mi5bqHMz8GpvcKBqCsZ6Wqnb">
+  <rect class="node-rect" x="420" y="570" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="585.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">EC業界で働く人のための生成AI研修③</text>
+  <g class="info-icon" transform="translate(606,581.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="飲食・サービス業界で働く人のためのDX/AI研修③" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1MDKkCN0-MPsH9hSic3L_U2aCbxrsrxWf">
+  <rect class="node-rect" x="420" y="600" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="615.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">飲食・サービス業界で働く人のためのDX/A…</text>
+  <g class="info-icon" transform="translate(606,611.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="自動車教習所での業務効率化を実現する生成AI,DX研修③" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1xwIctAJ6ET2rQHPc-dAHbbg7ldCIFvg7">
+  <rect class="node-rect" x="420" y="630" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="645.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">自動車教習所での業務効率化を実現する生成A…</text>
+  <g class="info-icon" transform="translate(606,641.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="コーポレートスタッフのための生成AI活用研修③" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1Xoh26gA3Uv3ki0K2F6jeSFvcx8M4bP2R">
+  <rect class="node-rect" x="420" y="660" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="675.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">コーポレートスタッフのための生成AI活用研…</text>
+  <g class="info-icon" transform="translate(606,671.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="営業現場で使える生成AI研修③" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1qgJDamoJLypTHyewoFHE4xNbcs8gbG3p">
+  <rect class="node-rect" x="420" y="690" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="705.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">営業現場で使える生成AI研修③</text>
+  <g class="info-icon" transform="translate(606,701.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="バイブコーディング研修" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1Qpwus6KCQFYGPavLWWEjMtHJ2HMmOFto">
+  <rect class="node-rect" x="420" y="720" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="735.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">バイブコーディング研修</text>
+  <g class="info-icon" transform="translate(606,731.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="AIエージェント研修" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1Lbe3veM2hTI_EVmGW7zODZMySDkwmSE0">
+  <rect class="node-rect" x="420" y="750" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="765.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">AIエージェント研修</text>
+  <g class="info-icon" transform="translate(606,761.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="デジタルヒューマン作成学習プログラム" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1syVakaUxnDS8WOahAwO6R0W6fXJi2Qqp">
+  <rect class="node-rect" x="420" y="780" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="795.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">デジタルヒューマン作成学習プログラム</text>
+  <g class="info-icon" transform="translate(606,791.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="業務で使う生成AI研修" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1N6dj4vXzH4bT-BPWvcnffavdScNvpPJs">
+  <rect class="node-rect" x="420" y="810" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="825.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">業務で使う生成AI研修</text>
+  <g class="info-icon" transform="translate(606,821.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l2" data-name="② スタンダード  ツール活用・応用" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1-dGf5d_rCQAKhzpArg2vA0LCUqykJN4H">
+  <rect class="node-rect" x="200" y="1020.0" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="208" y="1035.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">② スタンダード  ツール活用・応用</text>
+  <g class="info-icon" transform="translate(386,1031.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="（動画未格納）不動産会社（仲介）のため生成AI研修②" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1svLH7EnPn0054ciawVGRsFmSx-WjCqRV">
+  <rect class="node-rect" x="420" y="840" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="855.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">（動画未格納）不動産会社（仲介）のため生成…</text>
+  <g class="info-icon" transform="translate(606,851.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="AIリスクを知り・対策する GenAIセキュリティ・ガバナンス実践講座" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1XhSrdvxi8H7btJuQy_61048FK6sovHo4">
+  <rect class="node-rect" x="420" y="870" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="885.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">AIリスクを知り・対策する GenAIセキ…</text>
+  <g class="info-icon" transform="translate(606,881.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="整体・マッサージ店の業務効率化を実現する生成AI研修②" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1Le5f9cCiqLl0BYDC5yOH7VGpE-z8ir48">
+  <rect class="node-rect" x="420" y="900" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="915.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">整体・マッサージ店の業務効率化を実現する生…</text>
+  <g class="info-icon" transform="translate(606,911.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="店舗で働く人のための生成AI研修②" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1A1tHXhPQgVO2Y33imEPrhS4-MsBCvr0i">
+  <rect class="node-rect" x="420" y="930" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="945.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">店舗で働く人のための生成AI研修②</text>
+  <g class="info-icon" transform="translate(606,941.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="学習塾での業務効率化を実現する生成AI研修②" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1wWX67ZvhLifomsa1Hzvwo1Syqmq6YY4B">
+  <rect class="node-rect" x="420" y="960" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="975.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">学習塾での業務効率化を実現する生成AI研修②</text>
+  <g class="info-icon" transform="translate(606,971.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="パチンコ業界で働く人のための生成AI研修②" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1haUtvDypZsKijX3wx24WM7qv4ujmRDVc">
+  <rect class="node-rect" x="420" y="990" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1005.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">パチンコ業界で働く人のための生成AI研修②</text>
+  <g class="info-icon" transform="translate(606,1001.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="EC業界で働く人のための生成AI研修②" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1JMuZrrD_uij9tRbcut2oQFTt56ZbrxH9">
+  <rect class="node-rect" x="420" y="1020" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1035.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">EC業界で働く人のための生成AI研修②</text>
+  <g class="info-icon" transform="translate(606,1031.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="飲食・サービス業界で働く人のためのDX/AI研修②" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/12-yzd4AKK3j-7FyKcfUydUEBAQgVt8ex">
+  <rect class="node-rect" x="420" y="1050" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1065.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">飲食・サービス業界で働く人のためのDX/A…</text>
+  <g class="info-icon" transform="translate(606,1061.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="自動車教習所での業務効率化を実現する生成AI,DX研修②" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1Y7qI8jvBc3Fiz6It7ANPju1uKDhxSdae">
+  <rect class="node-rect" x="420" y="1080" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1095.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">自動車教習所での業務効率化を実現する生成A…</text>
+  <g class="info-icon" transform="translate(606,1091.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="コーポレートスタッフのための生成AI活用研修②" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1DZ1EBcyCn-ajvGCULMqdY2Jn4F8NpcWD">
+  <rect class="node-rect" x="420" y="1110" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1125.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">コーポレートスタッフのための生成AI活用研…</text>
+  <g class="info-icon" transform="translate(606,1121.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="営業現場で使える生成AI研修②" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1a6MGybG4Y3LSpo1j7786Kr0pv8jCJ2S7">
+  <rect class="node-rect" x="420" y="1140" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1155.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">営業現場で使える生成AI研修②</text>
+  <g class="info-icon" transform="translate(606,1151.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="クリエイティブ研修_Canva (AI)" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/1nR8TqpDUa5zWmvmg329iU1f_C-iFAaiF">
+  <rect class="node-rect" x="420" y="1170" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1185.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">クリエイティブ研修_Canva (AI)</text>
+  <g class="info-icon" transform="translate(606,1181.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g><g class="node node-l3" data-name="社員セキュリティ入門" data-emails="tomoe@dxhr.inc,gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com" data-users='[{&quot;email&quot;: &quot;tomoe@dxhr.inc&quot;, &quot;role&quot;: &quot;編集&quot;}, {&quot;email&quot;: &quot;gdrive-s3-sync@xtem-subs-lms.iam.gserviceaccount.com&quot;, &quot;role&quot;: &quot;閲覧&quot;}]' data-url="https://drive.google.com/drive/folders/16XB2LRLzTxnOaKzA64co15cYb_tLvAZH">
+  <rect class="node-rect" x="420" y="1200" width="200" height="22" rx="2" ry="2" fill="#8a8a8a" stroke="#000" stroke-width="0.5"/>
+  <text class="node-text" x="428" y="1215.0" fill="#0a0a0a" font-size="11" font-weight="normal" font-family="'Noto Sans JP','Hiragino Sans',sans-serif">社員セキュリティ入門</text>
+  <g class="info-icon" transform="translate(606,1211.0)">
+    <circle r="6" fill="rgba(0,0,0,0.2)" stroke="#0a0a0a" stroke-width="0.5"/>
+    <text x="0" y="3" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a0a0a" font-family="'Noto Sans JP',sans-serif">i</text>
+  </g>
+</g></g></svg></div>
+  <aside class="side-panel" id="sidePanel">
+    <div class="panel-title">該当フォルダ <b id="resultCount">0</b></div>
+    <div id="panelBody"></div>
+  </aside>
+</div>
+<div id="tooltip"></div>
+<script>
+(function(){
+  const svg = document.getElementById('tree-svg');
+  const allNodes = Array.from(svg.querySelectorAll('.node'));
+  const allConns = Array.from(svg.querySelectorAll('.conn'));
+  const searchInput = document.getElementById('searchInput');
+  const panelBody = document.getElementById('panelBody');
+  const resultCount = document.getElementById('resultCount');
+  const sidePanel = document.getElementById('sidePanel');
+  const mainGrid = document.getElementById('mainGrid');
+  const tooltip = document.getElementById('tooltip');
+  const svgContainer = document.getElementById('svgContainer');
+  
+  allNodes.forEach(n => {
+    const rect = n.querySelector('.node-rect');
+    const text = n.querySelector('.node-text');
+    [rect, text].forEach(el => {
+      if (!el) return;
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.info-icon')) return;
+        const url = n.dataset.url;
+        if (url) window.open(url, '_blank');
+      });
+    });
+    const info = n.querySelector('.info-icon');
+    if (info) {
+      info.addEventListener('mouseenter', (e) => showTip(e, n));
+      info.addEventListener('mousemove', (e) => positionTip(e));
+      info.addEventListener('mouseleave', () => hideTip());
+    }
+  });
+  
+  function showTip(e, node) {
+    const name = node.dataset.name;
+    let users;
+    try { users = JSON.parse(node.dataset.users); } catch(_) { users = []; }
+    let h = `<div class="tt-header">${escapeHtml(name)}</div>`;
+    if (users.length === 0) { h += '<div class="tt-empty">権限情報なし</div>'; }
+    else { users.forEach(u => { h += `<div class="tt-user">${escapeHtml(u.email)} <span class="tt-role">${u.role ? '('+escapeHtml(u.role)+')' : ''}</span></div>`; }); }
+    tooltip.innerHTML = h;
+    tooltip.style.display = 'block';
+    positionTip(e);
+  }
+  function positionTip(e) {
+    const pad = 14;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+    if (x + tw > window.innerWidth) x = e.clientX - tw - pad;
+    if (y + th > window.innerHeight) y = e.clientY - th - pad;
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+  }
+  function hideTip() { tooltip.style.display = 'none'; }
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+  
+  let searchTimer = null;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(doSearch, 150);
+  });
+  
+  function doSearch() {
+    const q = searchInput.value.trim().toLowerCase();
+    if (!q) { clearHighlight(); return; }
+    const matched = [];
+    allNodes.forEach(n => {
+      const emails = (n.dataset.emails || '').toLowerCase();
+      const emailList = emails.split(',').filter(Boolean);
+      let hit = false;
+      for (const e of emailList) { if (e === q || e.includes(q)) { hit = true; break; } }
+      if (hit) { n.classList.add('highlight'); n.classList.remove('dimmed'); matched.push(n); }
+      else { n.classList.remove('highlight'); n.classList.add('dimmed'); }
+    });
+    allConns.forEach(c => c.classList.add('dimmed'));
+    
+    // 結果が0件でもパネルは表示する（マッチ0もメッセージで示す）
+    sidePanel.classList.add('visible');
+    mainGrid.classList.remove('no-panel');
+    
+    if (matched.length === 0) {
+      resultCount.textContent = '0';
+      panelBody.innerHTML = '<div class="no-hit" style="padding:12px; text-align:center; color:var(--text-dim); font-size:11px; font-style:italic">該当するフォルダはこのページ内にありません</div>';
+    } else {
+      resultCount.textContent = matched.length;
+      const ul = document.createElement('ul');
+      ul.id = 'resultList';
+      matched.forEach((n) => {
+        const li = document.createElement('li');
+        const name = n.dataset.name;
+        const lvl = (n.getAttribute('class').match(/node-l(\d)/) || [])[1] || '?';
+        li.innerHTML = `<span class="lvl-badge">L${lvl}</span>${escapeHtml(name)}`;
+        li.addEventListener('click', () => jumpTo(n));
+        ul.appendChild(li);
+      });
+      panelBody.innerHTML = '';
+      panelBody.appendChild(ul);
+    }
+  }
+  
+  function clearHighlight() {
+    allNodes.forEach(n => { n.classList.remove('highlight','dimmed','jump-target'); });
+    allConns.forEach(c => c.classList.remove('dimmed'));
+    // パネルを初期状態（非表示）に戻す
+    sidePanel.classList.remove('visible');
+    mainGrid.classList.add('no-panel');
+    resultCount.textContent = '0';
+    panelBody.innerHTML = '';
+  }
+  
+  // 初期状態: パネル非表示
+  clearHighlight();
+  
+  window.clearSearch = function() {
+    searchInput.value = '';
+    clearHighlight();
+    searchInput.focus();
+  };
+  
+  function jumpTo(node) {
+    const rect = node.querySelector('.node-rect');
+    const x = parseFloat(rect.getAttribute('x'));
+    const y = parseFloat(rect.getAttribute('y'));
+    const w = parseFloat(rect.getAttribute('width'));
+    const containerRect = svgContainer.getBoundingClientRect();
+    svgContainer.scrollTo({ left: x - containerRect.width/2 + w/2, top: y - containerRect.height/2, behavior: 'smooth' });
+    allNodes.forEach(n => n.classList.remove('jump-target'));
+    node.classList.add('jump-target');
+    setTimeout(() => node.classList.remove('jump-target'), 2000);
+  }
+  
+  // URLパラメータから自動検索
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const email = params.get('email');
+    if (email) { searchInput.value = email; doSearch(); }
+  } catch(_) {}
+})();
+</script>
+</body>
+</html>
