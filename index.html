@@ -96,7 +96,7 @@ function renderDrives(filter = '') {
     const matched = !q || d.drive.toLowerCase().includes(q);
     if (matched) visibleCount++;
     // 連番ファイル名（ASCII安全）なので encodeURIComponent 不要だが念のため
-    return `<a class="row${matched ? '' : ' hidden'}" href="drives/${d.filename}">
+    return `<a class="row${matched ? '' : ' hidden'}" href="${d.filename}">
       <span class="idx">${String(i+1).padStart(3, '0')}</span>
       <span class="count">${d.node_count.toLocaleString()}</span>
       <span class="name">${escapeHtml(d.drive)}</span>
