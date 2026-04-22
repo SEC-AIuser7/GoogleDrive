@@ -42,6 +42,8 @@ body { background: radial-gradient(circle at 15% 15%, rgba(143,217,199,0.04) 0%,
 .drives-list .row:hover { background: var(--bg-2); }
 .drives-list .row:last-child { border-bottom: none; }
 .drives-list .row.hidden { display: none; }
+.drives-list .row.disabled { pointer-events: none; cursor: default; opacity: 0.38; filter: grayscale(1); }
+.drives-list .row.disabled .meta { color: var(--text-faint); }
 .drives-list .row .idx { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-faint); }
 .drives-list .row .count { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600; color: var(--accent); }
 .drives-list .row .name { font-size: 15px; color: var(--text); font-weight: 500; word-break: break-all; }
@@ -96,6 +98,16 @@ function renderDrives(filter = '') {
     const matched = !q || d.drive.toLowerCase().includes(q);
     if (matched) visibleCount++;
     // 連番ファイル名（ASCII安全）なので encodeURIComponent 不要だが念のため
+    const isDisabled = d.filename === 'drive_002.html';
+    if (isDisabled) {
+      return `<a class="row${matched ? '' : ' hidden'} disabled" href="${d.filename}" onclick="return false;" tabindex="-1" aria-disabled="true">
+        <span class="idx">${String(i+1).padStart(3, '0')}</span>
+        <span class="count">${d.node_count.toLocaleString()}</span>
+        <span class="name">🔒 ${escapeHtml(d.drive)}</span>
+        <span class="users">${d.user_count} users</span>
+        <span class="meta">—</span>
+      </a>`;
+    }
     return `<a class="row${matched ? '' : ' hidden'}" href="${d.filename}">
       <span class="idx">${String(i+1).padStart(3, '0')}</span>
       <span class="count">${d.node_count.toLocaleString()}</span>
